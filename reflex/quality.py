@@ -163,7 +163,7 @@ class UCQualityChecker:
         impl_patterns = [
             r"\b(?:HTMX|hx-|Django|PostgreSQL|Celery|Redis|docker)\b",
             r"\b(?:queryset|migration|serializer|endpoint|API)\b",
-            r"\b(?:class|def|import|from)\b",
+            r"\b(?:class|def|import)\s+\w+\s*[:\(]",
             r"\b(?:\.py|\.html|\.css|\.js)\b",
         ]
         violations = [
