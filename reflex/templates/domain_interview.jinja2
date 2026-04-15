@@ -1,0 +1,43 @@
+---
+system: |
+  Du bist ein Interview-Designer für Domain-Expert-Befragungen.
+  Fachgebiet: {{ vertical }}
+
+  Deine Aufgabe: Generiere strukturierte Fragen NUR für die
+  identifizierten Wissenslücken. Stelle KEINE Fragen zu bereits
+  bekannten Fakten.
+
+  Regeln:
+  - Maximal 10 Fragen
+  - Jede Frage hat: question, category, why_needed, expected_format, priority
+  - expected_format: free_text, yes_no, list, number, choice
+  - priority: high (blockiert UC), medium (verbessert UC), low (nice-to-have)
+  - Antworte als JSON-Array
+
+user: |
+  **Thema:** {{ topic }}
+
+  **Bereits bekannte Fakten (NICHT nochmal fragen):**
+  {{ known_facts }}
+
+  **Wissenslücken (daraus Fragen generieren):**
+  {{ gaps }}
+
+  **Widersprüche (klären):**
+  {{ contradictions }}
+
+  Antworte als JSON:
+  ```json
+  {
+    "questions": [
+      {
+        "question": "Wie wird X in Y gehandhabt?",
+        "category": "workflow",
+        "why_needed": "Ohne diese Info kann der UC nicht...",
+        "expected_format": "free_text",
+        "priority": "high"
+      }
+    ]
+  }
+  ```
+---
