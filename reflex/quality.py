@@ -66,7 +66,10 @@ class UCQualityChecker:
             r"(?:Als\s+(?:ein(?:e)?|der|die)\s+\w+)",
         ]
         found = any(re.search(p, text, re.IGNORECASE) for p in actor_patterns)
-        vague = bool(re.search(r"\b(jemand|man|einer)\b", text, re.IGNORECASE))
+        vague = bool(re.search(
+            r"\b(jemand|(?<!\w)man(?!\w)|(?:^|\.\s+)einer\s+(?:sollte|muss|kann|könnte|macht))\b",
+            text, re.IGNORECASE | re.MULTILINE,
+        ))
 
         return QualityCriterion(
             name="C-01: Spezifischer Akteur",

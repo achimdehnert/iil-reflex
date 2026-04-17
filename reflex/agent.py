@@ -245,9 +245,9 @@ class DomainAgent:
             return DomainResearchResult(
                 topic=topic,
                 vertical=self.config.vertical,
-                facts=data.get("facts", []),
-                gaps=data.get("gaps", []),
-                contradictions=data.get("contradictions", []),
+                facts=self._normalize_string_list(data.get("facts", [])),
+                gaps=self._normalize_string_list(data.get("gaps", [])),
+                contradictions=self._normalize_string_list(data.get("contradictions", [])),
                 sources_used=sources,
                 confidence=data.get("confidence", 0.5),
             )
@@ -331,6 +331,25 @@ class DomainAgent:
             f"- Keine weiche Sprache: {qc.forbid_soft_language}",
         ]
         return "\n".join(criteria)
+
+    @staticmethod
+    def _normalize_string_list(items: list) -> list[str]:
+        """Normalize a list of items to strings.
+
+        LLMs sometimes return dicts (e.g. {"id": 1, "text": "..."})
+        instead of plain strings. This extracts the text field or
+        converts to string representation.
+        """
+        result: list[str] = []
+        for item in items:
+            if isinstance(item, str):
+                result.append(item)
+            elif isinstance(item, dict):
+                text = item.get("text") or item.get("content") or item.get("description", "")
+                result.append(str(text) if text else str(item))
+            else:
+                result.append(str(item))
+        return result
 
     @staticmethod
     def _extract_json(text: str) -> dict | list:

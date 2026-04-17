@@ -108,6 +108,36 @@ class TestDomainAgentKBDistill:
         assert kb.markdown
 
 
+class TestNormalizeStringList:
+    """Test _normalize_string_list helper."""
+
+    def test_should_pass_through_strings(self):
+        result = DomainAgent._normalize_string_list(["fact 1", "fact 2"])
+        assert result == ["fact 1", "fact 2"]
+
+    def test_should_extract_text_from_dicts(self):
+        items = [
+            {"id": 1, "text": "Zone 0 ist gefährlich", "source": "ATEX"},
+            {"id": 2, "text": "Zone 1 ist gelegentlich", "source": "ATEX"},
+        ]
+        result = DomainAgent._normalize_string_list(items)
+        assert result == ["Zone 0 ist gefährlich", "Zone 1 ist gelegentlich"]
+
+    def test_should_handle_mixed_list(self):
+        items = ["plain string", {"text": "dict text"}, 42]
+        result = DomainAgent._normalize_string_list(items)
+        assert result == ["plain string", "dict text", "42"]
+
+    def test_should_handle_empty_list(self):
+        assert DomainAgent._normalize_string_list([]) == []
+
+    def test_should_fallback_to_str_for_unknown_dicts(self):
+        items = [{"unknown_key": "value"}]
+        result = DomainAgent._normalize_string_list(items)
+        assert len(result) == 1
+        assert "unknown_key" in result[0]
+
+
 class TestDomainAgentValidation:
     """Test UC validation (Zirkel 0, Phase 4/6)."""
 

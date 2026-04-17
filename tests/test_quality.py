@@ -116,3 +116,17 @@ class TestUCQualityChecker:
             c for c in result.criteria if "Akzeptanzkriterien" in c.name
         )
         assert ak_criterion.passed
+
+    def test_should_not_flag_einer_as_vague_article(self, checker):
+        uc = (
+            "## Akteur\nDer Prüfer\n"
+            "## Ziel\ndamit geprüft wird\n"
+            "## Schritte\n1. Upload\n2. Check\n"
+            "## Fehlerfälle\nFalls ungültig, erscheint einer verständlichen Fehlermeldung\n"
+            "## AK\nGIVEN x WHEN y THEN z\nGIVEN a WHEN b THEN c\n"
+            "## Vorbedingung\nUser eingeloggt\n"
+            "## Scope\nNur Upload. Nicht Teil: Export"
+        )
+        result = checker.check(uc, uc_slug="article-einer")
+        actor_criterion = next(c for c in result.criteria if "Akteur" in c.name)
+        assert actor_criterion.passed, f"'einer' as article was falsely flagged: {actor_criterion.evidence}"
