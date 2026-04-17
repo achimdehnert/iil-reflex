@@ -133,29 +133,52 @@ class TestHtmlToText:
 
 
 class TestPubChemAdapter:
-    def test_should_parse_compound_json(self):
+    def test_should_parse_ghs_view(self):
         from reflex.web import PubChemAdapter
 
-        mock_json = json.dumps({
-            "PC_Compounds": [{
-                "props": [
-                    {"urn": {"label": "CAS"}, "value": {"sval": "64-17-5"}},
-                    {
-                        "urn": {"label": "IUPAC Name", "name": "Preferred"},
-                        "value": {"sval": "ethanol"},
-                    },
-                ]
-            }]
+        mock_ghs = json.dumps({
+            "Record": {"Section": [{
+                "Section": [{
+                    "Section": [{
+                        "TOCHeading": "GHS Classification",
+                        "Information": [
+                            {
+                                "Name": "GHS Hazard Statements",
+                                "Value": {
+                                    "StringWithMarkup": [
+                                        {"String": "H225: Highly flammable"},
+                                        {"String": "H319: Eye irritation"},
+                                    ]
+                                },
+                            },
+                            {
+                                "Name": "Signal",
+                                "Value": {
+                                    "StringWithMarkup": [
+                                        {"String": "Danger"},
+                                    ]
+                                },
+                            },
+                        ],
+                    }]
+                }]
+            }]}
         })
-        result = PubChemAdapter._parse_compound(mock_json, "ethanol", "https://pubchem.test")
-        assert result is not None
-        assert result.cas_number == "64-17-5"
-        assert result.substance_name == "ethanol"
+        result = PubChemAdapter._parse_ghs_view(mock_ghs)
+        assert "H225" in result["h_statements"]
+        assert "H319" in result["h_statements"]
+        assert result["signal_word"] == "Danger"
 
-    def test_should_return_none_on_invalid_json(self):
+    def test_should_handle_empty_ghs(self):
         from reflex.web import PubChemAdapter
-        result = PubChemAdapter._parse_compound("not json", "x", "url")
-        assert result is None
+        result = PubChemAdapter._parse_ghs_view("{}")
+        assert result["h_statements"] == []
+        assert result["signal_word"] == ""
+
+    def test_should_handle_invalid_json(self):
+        from reflex.web import PubChemAdapter
+        result = PubChemAdapter._parse_ghs_view("not json")
+        assert result["h_statements"] == []
 
 
 # ── GESTIS adapter (unit tests — mock JSON) ──────────────────────────────

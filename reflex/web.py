@@ -228,6 +228,14 @@ class HttpxWebProvider:
 # ── SDS-Specific Adapters ─────────────────────────────────────────────────
 
 
+def _collect_info(node: dict, out: list) -> None:
+    """Recursively collect all Information items from PUG View JSON."""
+    if "Information" in node:
+        out.extend(node["Information"])
+    for sec in node.get("Section", []):
+        _collect_info(sec, out)
+
+
 class PubChemAdapter:
     """Fetch substance data from PubChem REST API.
 
@@ -240,40 +248,165 @@ class PubChemAdapter:
         self.web = web or HttpxWebProvider()
 
     def lookup_by_name(self, name: str) -> SDSData | None:
-        """Look up substance by name → structured SDS data."""
-        url = f"{self.BASE_URL}/compound/name/{name}/JSON"
-        page = self.web.fetch(url)
-        if page.status_code != 200:
-            logger.warning("PubChem lookup failed for %s: HTTP %d", name, page.status_code)
+        """Look up substance by name -> structured SDS data.
+
+        Uses CID -> properties + synonyms (for CAS) + GHS data.
+        """
+        cid = self._get_cid(name)
+        if not cid:
+            logger.warning("PubChem: no CID for %s", name)
             return None
-        return self._parse_compound(page.text, name, url)
+        return self._build_sds(cid, name)
 
     def lookup_by_cas(self, cas: str) -> SDSData | None:
         """Look up substance by CAS number."""
-        url = f"{self.BASE_URL}/compound/name/{cas}/JSON"
-        page = self.web.fetch(url)
-        if page.status_code != 200:
-            return None
-        return self._parse_compound(page.text, cas, url)
-
-    def get_ghs_info(self, name: str) -> dict[str, Any]:
-        """Get GHS classification from PubChem."""
-        cid = self._get_cid(name)
+        cid = self._get_cid(cas)
         if not cid:
-            return {}
+            return None
+        sds = self._build_sds(cid, cas)
+        if sds and not sds.cas_number:
+            return SDSData(
+                substance_name=sds.substance_name,
+                cas_number=cas,
+                h_statements=sds.h_statements,
+                p_statements=sds.p_statements,
+                flash_point=sds.flash_point,
+                signal_word=sds.signal_word,
+                ghs_pictograms=sds.ghs_pictograms,
+                source_url=sds.source_url,
+                raw_text=sds.raw_text,
+            )
+        return sds
+
+    def _build_sds(self, cid: int, query: str) -> SDSData | None:
+        """Build SDSData from multiple PubChem endpoints."""
+        props = self._get_properties(cid)
+        iupac = props.get("IUPACName", query)
+        cas = self._get_cas_from_synonyms(cid)
+        ghs = self._get_ghs_classification(cid)
+        url = f"{self.BASE_URL}/compound/cid/{cid}/JSON"
+
+        return SDSData(
+            substance_name=iupac,
+            cas_number=cas,
+            h_statements=ghs.get("h_statements", []),
+            p_statements=ghs.get("p_statements", []),
+            signal_word=ghs.get("signal_word", ""),
+            ghs_pictograms=ghs.get("pictograms", []),
+            source_url=url,
+            raw_text=json.dumps(props, indent=2)[:2000],
+        )
+
+    def _get_properties(self, cid: int) -> dict[str, Any]:
+        """Get computed properties for a CID."""
         url = (
             f"{self.BASE_URL}/compound/cid/{cid}/"
-            "property/MolecularFormula,MolecularWeight,IUPACName/JSON"
+            "property/IUPACName,MolecularFormula,"
+            "MolecularWeight/JSON"
         )
         page = self.web.fetch(url)
         if page.status_code != 200:
             return {}
         try:
             data = json.loads(page.text)
-            props = data.get("PropertyTable", {}).get("Properties", [{}])[0]
-            return props
+            return data.get(
+                "PropertyTable", {}
+            ).get("Properties", [{}])[0]
         except (json.JSONDecodeError, IndexError):
             return {}
+
+    def _get_cas_from_synonyms(self, cid: int) -> str:
+        """Extract CAS number from PubChem synonyms."""
+        url = f"{self.BASE_URL}/compound/cid/{cid}/synonyms/JSON"
+        page = self.web.fetch(url)
+        if page.status_code != 200:
+            return ""
+        try:
+            data = json.loads(page.text)
+            synonyms = (
+                data.get("InformationList", {})
+                .get("Information", [{}])[0]
+                .get("Synonym", [])
+            )
+            cas_pat = re.compile(r"^\d{2,7}-\d{2}-\d$")
+            for s in synonyms:
+                if cas_pat.match(s):
+                    return s
+            return ""
+        except (json.JSONDecodeError, IndexError):
+            return ""
+
+    def _get_ghs_classification(self, cid: int) -> dict[str, Any]:
+        """Get GHS hazard data from PubChem PUG View."""
+        url = (
+            "https://pubchem.ncbi.nlm.nih.gov/rest/pug_view"
+            f"/data/compound/{cid}/JSON"
+            "?heading=GHS+Classification"
+        )
+        page = self.web.fetch(url)
+        if page.status_code != 200:
+            return {}
+        return self._parse_ghs_view(page.text)
+
+    @staticmethod
+    def _parse_ghs_view(text: str) -> dict[str, Any]:
+        """Parse PUG View GHS section.
+
+        PubChem nests: Record > Section > Section > Section(GHS Classification)
+        with Information items keyed by 'Name' field.
+        """
+        result: dict[str, Any] = {
+            "h_statements": [],
+            "p_statements": [],
+            "signal_word": "",
+            "pictograms": [],
+        }
+        try:
+            data = json.loads(text)
+            # Collect all Information items from any nesting depth
+            all_info: list[dict] = []
+            _collect_info(data.get("Record", {}), all_info)
+
+            for info in all_info:
+                name = info.get("Name", "")
+                strings = [
+                    item.get("String", "")
+                    for item in info.get("Value", {}).get(
+                        "StringWithMarkup", []
+                    )
+                ]
+                full = " ".join(strings)
+
+                if "Hazard Statements" in name:
+                    result["h_statements"].extend(
+                        re.findall(r"H\d{3}", full)
+                    )
+                elif "Precautionary" in name:
+                    result["p_statements"].extend(
+                        re.findall(r"P\d{3}", full)
+                    )
+                elif name == "Signal":
+                    for s in strings:
+                        s = s.strip()
+                        if s and s != " ":
+                            result["signal_word"] = s
+                elif "Pictogram" in name:
+                    result["pictograms"].extend(
+                        re.findall(r"GHS\d{2}", full)
+                    )
+
+            result["h_statements"] = sorted(
+                set(result["h_statements"])
+            )
+            result["p_statements"] = sorted(
+                set(result["p_statements"])
+            )
+            result["pictograms"] = sorted(
+                set(result["pictograms"])
+            )
+        except (json.JSONDecodeError, KeyError):
+            pass
+        return result
 
     def _get_cid(self, name: str) -> int | None:
         """Get PubChem CID for a substance name."""
@@ -286,34 +419,6 @@ class PubChemAdapter:
             cids = data.get("IdentifierList", {}).get("CID", [])
             return cids[0] if cids else None
         except (json.JSONDecodeError, IndexError):
-            return None
-
-    @staticmethod
-    def _parse_compound(text: str, name: str, url: str) -> SDSData | None:
-        """Parse PubChem JSON response into SDSData."""
-        try:
-            data = json.loads(text)
-            compound = data.get("PC_Compounds", [{}])[0]
-            props = compound.get("props", [])
-
-            cas = ""
-            iupac = ""
-            for p in props:
-                urn = p.get("urn", {})
-                label = urn.get("label", "")
-                if label == "CAS":
-                    cas = p.get("value", {}).get("sval", "")
-                elif label == "IUPAC Name" and urn.get("name") == "Preferred":
-                    iupac = p.get("value", {}).get("sval", "")
-
-            return SDSData(
-                substance_name=iupac or name,
-                cas_number=cas,
-                source_url=url,
-                raw_text=text[:2000],
-            )
-        except (json.JSONDecodeError, IndexError, KeyError) as e:
-            logger.error("PubChem parse failed: %s", e)
             return None
 
 
