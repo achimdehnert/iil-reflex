@@ -27,12 +27,21 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+llm = ["litellm>=1.40"]
+aifw = ["iil-aifw>=0.9.0"]
 playwright = ["playwright>=1.40"]
 dev = [
     "pytest>=8.0",
     "pytest-cov",
     "ruff>=0.4",
+    "litellm>=1.40",
 ]
+all = [
+    "iil-reflex[llm,aifw,playwright,dev]",
+]
+
+[project.scripts]
+reflex = "reflex.__main__:main"
 
 [project.urls]
 Homepage = "https://github.com/achimdehnert/iil-reflex"
