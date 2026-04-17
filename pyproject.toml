@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "iil-reflex"
-version = "0.2.1"
-description = "REFLEX — Reflexive Evidence-based Loop for UI Development"
+version = "0.4.0"
+description = "REFLEX — Evidence-based UI development with LLM domain agent, UC dialog, permission testing, and dev cycle orchestration"
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.11"

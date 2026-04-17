@@ -242,6 +242,61 @@ def cmd_sds(args: argparse.Namespace) -> int:
     return 0
 
 
+
+def cmd_init(args: argparse.Namespace) -> int:
+    """Generate reflex.yaml from scaffold template (ADR-163)."""
+    from reflex.scaffold import ScaffoldOptions, scaffold, scaffold_force
+
+    options = ScaffoldOptions(
+        hub_name=args.hub,
+        tier=args.tier,
+        vertical=args.vertical or "general",
+        port=args.port,
+        output_path=args.output,
+    )
+
+    try:
+        if args.force:
+            path = scaffold_force(options)
+        else:
+            path = scaffold(options)
+    except FileExistsError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        return 1
+
+    print(f"\n  REFLEX Scaffold: Tier {options.tier}")
+    print(f"  Hub:      {options.hub_name}")
+    print(f"  Vertical: {options.vertical}")
+    print(f"  Port:     {options.port}")
+    print(f"  Output:   {path}")
+    print(f"\n  Created {path} successfully.\n")
+    return 0
+
+
+def cmd_platform(args: argparse.Namespace) -> int:
+    """Run platform-wide REFLEX checks (ADR-163)."""
+    from reflex.platform_runner import PlatformRunner
+
+    if not args.config:
+        print("ERROR: --config is required for platform command", file=sys.stderr)
+        return 1
+
+    runner = PlatformRunner.from_yaml(args.config)
+    report = runner.run_all()
+
+    if args.json:
+        print(PlatformRunner.to_json(report))
+    elif args.report:
+        md = PlatformRunner.to_markdown(report)
+        Path(args.report).write_text(md, encoding="utf-8")
+        print(f"  Report written to {args.report}")
+    else:
+        PlatformRunner.print_report(report)
+
+    # Exit code: 0 if all healthy, 1 if any errors
+    return 0 if report.healthy_hubs == report.total_hubs else 1
+
+
 def cmd_info(args: argparse.Namespace) -> int:
     """Show REFLEX config info."""
     from reflex.config import ReflexConfig
@@ -326,6 +381,23 @@ def main() -> int:
     p_classify.add_argument("error_message", help="Error message")
     p_classify.add_argument("--uc-file", help="UC file for context")
 
+    # init (ADR-163)
+    p_init = sub.add_parser("init", help="Generate reflex.yaml scaffold (ADR-163)")
+    p_init.add_argument("--hub", required=True, help="Hub name (e.g. risk-hub)")
+    p_init.add_argument(
+        "--tier", type=int, default=2, choices=[1, 2],
+        help="Tier level: 1 (full) or 2 (light)",
+    )
+    p_init.add_argument("--vertical", default="general", help="Domain vertical")
+    p_init.add_argument("--port", type=int, default=8000, help="Local dev port")
+    p_init.add_argument("--output", "-o", default="reflex.yaml", help="Output path")
+    p_init.add_argument("--force", action="store_true", help="Overwrite existing file")
+
+    # platform (ADR-163)
+    p_platform = sub.add_parser("platform", help="Platform-wide health report (ADR-163)")
+    p_platform.add_argument("--json", "-j", action="store_true", help="Output JSON")
+    p_platform.add_argument("--report", "-r", help="Write Markdown report to file")
+
     # info
     sub.add_parser("info", help="Show config info")
 
@@ -341,6 +413,8 @@ def main() -> int:
         "scrape": cmd_scrape,
         "sds": cmd_sds,
         "classify": cmd_classify,
+        "init": cmd_init,
+        "platform": cmd_platform,
         "info": cmd_info,
     }
     return commands[args.command](args)
