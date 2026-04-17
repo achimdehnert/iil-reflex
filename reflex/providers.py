@@ -25,8 +25,7 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-from reflex.types import DocumentEntry, KnowledgeEntry
-
+from reflex.types import DocumentEntry, KnowledgeEntry, WebPage
 
 # ── Protocols ──────────────────────────────────────────────────────────────
 
@@ -46,6 +45,19 @@ class DocumentProvider(Protocol):
 
     def search(self, query: str, limit: int = 5) -> list[DocumentEntry]:
         """Search documents and return ranked entries."""
+        ...
+
+
+@runtime_checkable
+class WebProvider(Protocol):
+    """Protocol for web scraping (httpx, Playwright, etc.)."""
+
+    def fetch(self, url: str) -> WebPage:
+        """Fetch a URL and return scraped page content."""
+        ...
+
+    def search_web(self, query: str, limit: int = 5) -> list[WebPage]:
+        """Search the web and return top results with content."""
         ...
 
 
@@ -99,6 +111,27 @@ class MockDocumentProvider:
         self._entries.append(
             DocumentEntry(title=title, snippet=snippet, source=source)
         )
+
+
+class MockWebProvider:
+    """In-memory web provider for testing."""
+
+    def __init__(self, pages: list[WebPage] | None = None):
+        self._pages = {p.url: p for p in (pages or [])}
+
+    def fetch(self, url: str) -> WebPage:
+        if url in self._pages:
+            return self._pages[url]
+        return WebPage(url=url, title="Not Found", text="", status_code=404)
+
+    def search_web(self, query: str, limit: int = 5) -> list[WebPage]:
+        return [
+            p for p in self._pages.values()
+            if query.lower() in p.title.lower() or query.lower() in p.text.lower()
+        ][:limit]
+
+    def add(self, url: str, title: str, text: str) -> None:
+        self._pages[url] = WebPage(url=url, title=title, text=text)
 
 
 class MockLLMProvider:

@@ -9,11 +9,12 @@ Architecture:
     reflex.quality       → UC Quality Checker (11 criteria)
     reflex.classify      → Failure Classifier (UC_PROBLEM vs UI_PROBLEM)
     reflex.config        → ReflexConfig from reflex.yaml
-    reflex.providers     → KnowledgeProvider, DocumentProvider (Protocol)
+    reflex.providers     → KnowledgeProvider, DocumentProvider, WebProvider (Protocol)
     reflex.llm_providers → AifwProvider, LiteLLMProvider (via iil-aifw / litellm)
-    reflex.types         → Dataclasses (Results, Questions, Entries)
+    reflex.web           → HttpxWebProvider, PubChemAdapter, GESTISAdapter, PDFDocumentProvider
+    reflex.types         → Dataclasses (Results, Questions, Entries, WebPage, SDSData)
     reflex.templates/    → promptfw .jinja2 templates (package_data)
-    reflex.__main__      → CLI: python -m reflex check/research/classify/info
+    reflex.__main__      → CLI: python -m reflex check/research/scrape/sds/classify/info
 
 Usage:
     from reflex.agent import DomainAgent
@@ -24,4 +25,4 @@ Usage:
     result = agent.research("SDS Upload Pipeline")
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

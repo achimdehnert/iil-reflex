@@ -3,7 +3,9 @@ REFLEX CLI — Command-line interface for UC quality checks and domain research.
 
 Usage:
     python -m reflex check <uc-file> [--config reflex.yaml]
-    python -m reflex research <topic> [--config reflex.yaml] [--backend groq]
+    python -m reflex research <topic> [--config reflex.yaml] [--backend groq] [--web]
+    python -m reflex scrape <url> [--pdf] [--json]
+    python -m reflex sds <substance> [--source pubchem|gestis]
     python -m reflex classify <test-name> <error-msg> [--uc-file <path>]
     python -m reflex info [--config reflex.yaml]
 
@@ -73,13 +75,19 @@ def cmd_research(args: argparse.Namespace) -> int:
         provider_kwargs["model"] = args.model
     llm = get_provider(backend=args.backend, **provider_kwargs)
 
-    agent = DomainAgent(config=config, llm=llm)
+    web = None
+    if args.web:
+        from reflex.web import HttpxWebProvider
+        web = HttpxWebProvider()
+
+    agent = DomainAgent(config=config, llm=llm, web=web)
     topic = " ".join(args.topic)
 
     model_name = getattr(llm, "model", args.backend)
     print(f"\nResearching: {topic}")
     print(f"  Vertical: {config.vertical}")
     print(f"  Backend:  {args.backend} ({model_name})")
+    print(f"  Web:      {'enabled' if args.web else 'disabled'}")
     print(f"  {'─'*50}")
 
     result = agent.research(topic)
@@ -137,7 +145,7 @@ def cmd_classify(args: argparse.Namespace) -> int:
     )
 
     print(f"\n{'='*60}")
-    print(f"  REFLEX Failure Classification")
+    print("  REFLEX Failure Classification")
     print(f"{'='*60}")
     print(f"  Test:       {args.test_name}")
     print(f"  Type:       {result.failure_type.value}")
@@ -148,6 +156,89 @@ def cmd_classify(args: argparse.Namespace) -> int:
         print(f"  Criterion:  {result.affected_criterion}")
     print()
 
+    return 0
+
+
+def cmd_scrape(args: argparse.Namespace) -> int:
+    """Scrape a URL and show extracted content."""
+    from reflex.web import HttpxWebProvider
+
+    web = HttpxWebProvider()
+    page = web.fetch(args.url)
+
+    print(f"\n{'='*60}")
+    print("  REFLEX Web Scrape")
+    print(f"{'='*60}")
+    print(f"  URL:     {page.url}")
+    print(f"  Title:   {page.title}")
+    print(f"  Status:  {page.status_code}")
+    print(f"  Type:    {page.content_type}")
+    print(f"  Length:  {len(page.text)} chars")
+    print(f"{'='*60}\n")
+
+    if args.json:
+        output = {
+            "url": page.url,
+            "title": page.title,
+            "status_code": page.status_code,
+            "content_type": page.content_type,
+            "text": page.text[:5000],
+            "scraped_at": page.scraped_at,
+        }
+        print(json.dumps(output, indent=2, ensure_ascii=False))
+    else:
+        print(page.text[:3000])
+        if len(page.text) > 3000:
+            print(f"\n  ... ({len(page.text) - 3000} more chars, use --json for full)")
+
+    print()
+    return 0
+
+
+def cmd_sds(args: argparse.Namespace) -> int:
+    """Look up SDS data for a substance."""
+    from dataclasses import asdict
+
+    from reflex.web import GESTISAdapter, HttpxWebProvider, PubChemAdapter
+
+    substance = " ".join(args.substance)
+    web = HttpxWebProvider()
+    results: list[dict] = []
+
+    print(f"\n{'='*60}")
+    print(f"  REFLEX SDS Lookup: {substance}")
+    print(f"{'='*60}")
+
+    if args.source in ("pubchem", "all"):
+        print("\n  Querying PubChem...")
+        adapter = PubChemAdapter(web=web)
+        sds = adapter.lookup_by_name(substance)
+        if sds:
+            print(f"  ✅ Found: {sds.substance_name}")
+            print(f"     CAS:  {sds.cas_number or 'N/A'}")
+            results.append({"source": "pubchem", **asdict(sds)})
+        else:
+            print("  ❌ Not found on PubChem")
+
+    if args.source in ("gestis", "all"):
+        print("\n  Querying GESTIS...")
+        adapter = GESTISAdapter(web=web)
+        hits = adapter.search(substance)
+        if hits:
+            print(f"  ✅ Found {len(hits)} match(es):")
+            for h in hits[:3]:
+                print(f"     • {h['name']} (CAS: {h.get('cas', 'N/A')}, ZVG: {h.get('zvg', '')})")
+                if h.get("zvg"):
+                    sds = adapter.lookup(h["zvg"])
+                    if sds:
+                        results.append({"source": "gestis", **asdict(sds)})
+        else:
+            print("  ❌ Not found on GESTIS")
+
+    if args.json and results:
+        print(f"\n{json.dumps(results, indent=2, ensure_ascii=False)}")
+
+    print()
     return 0
 
 
@@ -168,7 +259,7 @@ def cmd_info(args: argparse.Namespace) -> int:
     print(f"  Vertical:  {config.vertical}")
     print(f"  Keywords:  {', '.join(config.domain_keywords[:8])}")
     print(f"  Viewports: {', '.join(v.name for v in config.viewports)}")
-    print(f"\n  Quality Rules:")
+    print("\n  Quality Rules:")
     print(f"    Max steps:           {config.quality.max_uc_steps}")
     print(f"    Min AK:              {config.quality.min_acceptance_criteria}")
     print(f"    Require error cases: {config.quality.require_error_cases}")
@@ -212,6 +303,22 @@ def main() -> int:
         help="litellm model string (e.g. groq/llama-3.3-70b-versatile, openai/gpt-4o-mini)",
     )
     p_research.add_argument("--json", "-j", action="store_true", help="Output JSON")
+    p_research.add_argument("--web", "-w", action="store_true", help="Enable web search")
+
+    # scrape
+    p_scrape = sub.add_parser("scrape", help="Scrape a URL (HTML or PDF)")
+    p_scrape.add_argument("url", help="URL to scrape")
+    p_scrape.add_argument("--json", "-j", action="store_true", help="Output JSON")
+
+    # sds
+    p_sds = sub.add_parser("sds", help="Look up SDS data for a substance")
+    p_sds.add_argument("substance", nargs="+", help="Substance name or CAS number")
+    p_sds.add_argument(
+        "--source", "-s", default="pubchem",
+        choices=["pubchem", "gestis", "all"],
+        help="Data source",
+    )
+    p_sds.add_argument("--json", "-j", action="store_true", help="Output JSON")
 
     # classify
     p_classify = sub.add_parser("classify", help="Classify test failure")
@@ -231,6 +338,8 @@ def main() -> int:
     commands = {
         "check": cmd_check,
         "research": cmd_research,
+        "scrape": cmd_scrape,
+        "sds": cmd_sds,
         "classify": cmd_classify,
         "info": cmd_info,
     }

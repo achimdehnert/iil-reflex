@@ -47,6 +47,7 @@ from reflex.providers import (
     DocumentProvider,
     KnowledgeProvider,
     LLMProvider,
+    WebProvider,
 )
 from reflex.types import (
     DomainKBResult,
@@ -74,11 +75,13 @@ class DomainAgent:
         llm: LLMProvider,
         knowledge: KnowledgeProvider | None = None,
         documents: DocumentProvider | None = None,
+        web: WebProvider | None = None,
     ):
         self.config = config
         self.llm = llm
         self.knowledge = knowledge
         self.documents = documents
+        self.web = web
 
     def research(self, topic: str) -> DomainResearchResult:
         """Phase 1-2: Autonomous domain research from all sources.
@@ -101,6 +104,15 @@ class DomainAgent:
             for d in docs:
                 context_parts.append(f"[{d.source}] {d.title}: {d.snippet}")
                 sources.append(d.source)
+
+        if self.web:
+            web_pages = self.web.search_web(
+                f"{topic} {self.config.vertical}", limit=3
+            )
+            for wp in web_pages:
+                text = wp.text_snippet if len(wp.text) > 500 else wp.text
+                context_parts.append(f"[Web: {wp.url}] {wp.title}: {text}")
+                sources.append(wp.url)
 
         existing_knowledge = "\n\n".join(context_parts) if context_parts else "Keine."
 

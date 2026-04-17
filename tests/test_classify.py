@@ -3,7 +3,6 @@
 import pytest
 
 from reflex.classify import FailureClassifier
-from reflex.providers import MockLLMProvider
 from reflex.types import FailureType
 
 

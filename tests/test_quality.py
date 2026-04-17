@@ -2,7 +2,6 @@
 
 import pytest
 
-from reflex.config import ReflexConfig
 from reflex.quality import UCQualityChecker
 
 

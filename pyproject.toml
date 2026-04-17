@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "iil-reflex"
-version = "0.1.1"
+version = "0.2.0"
 description = "REFLEX — Reflexive Evidence-based Loop for UI Development"
 readme = "README.md"
 license = {text = "MIT"}
@@ -30,14 +30,21 @@ dependencies = [
 llm = ["litellm>=1.40"]
 aifw = ["iil-aifw>=0.9.0"]
 playwright = ["playwright>=1.40"]
+web = [
+    "httpx>=0.27",
+    "beautifulsoup4>=4.12",
+    "pdfplumber>=0.11",
+]
 dev = [
     "pytest>=8.0",
     "pytest-cov",
     "ruff>=0.4",
     "litellm>=1.40",
+    "httpx>=0.27",
+    "beautifulsoup4>=4.12",
 ]
 all = [
-    "iil-reflex[llm,aifw,playwright,dev]",
+    "iil-reflex[llm,aifw,playwright,web,dev]",
 ]
 
 [project.scripts]

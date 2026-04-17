@@ -1,7 +1,5 @@
 """Tests for ReflexConfig — YAML loading and defaults."""
 
-import tempfile
-from pathlib import Path
 
 import pytest
 

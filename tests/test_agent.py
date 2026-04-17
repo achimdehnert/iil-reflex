@@ -1,8 +1,6 @@
 """Tests for DomainAgent — pure Python, no Django."""
 
 from reflex.agent import DomainAgent
-from reflex.config import ReflexConfig
-from reflex.providers import MockDocumentProvider, MockKnowledgeProvider, MockLLMProvider
 
 
 class TestDomainAgentResearch:

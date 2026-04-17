@@ -11,7 +11,6 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 
-
 # ── Enums ──────────────────────────────────────────────────────────────────
 
 
@@ -70,6 +69,44 @@ class DocumentEntry:
     source: str = ""
     doc_id: str = ""
     date: str = ""
+
+
+@dataclass(frozen=True)
+class WebPage:
+    """Scraped web page content."""
+
+    url: str
+    title: str
+    text: str
+    html: str = ""
+    status_code: int = 200
+    content_type: str = "text/html"
+    scraped_at: str = ""
+
+    @property
+    def is_pdf(self) -> bool:
+        return "application/pdf" in self.content_type
+
+    @property
+    def text_snippet(self) -> str:
+        return self.text[:500] + "..." if len(self.text) > 500 else self.text
+
+
+@dataclass(frozen=True)
+class SDSData:
+    """Structured SDS (Safety Data Sheet) data extracted from web or PDF."""
+
+    substance_name: str
+    cas_number: str = ""
+    h_statements: list[str] = field(default_factory=list)
+    p_statements: list[str] = field(default_factory=list)
+    flash_point: str = ""
+    ignition_temperature: str = ""
+    explosion_limits: str = ""
+    signal_word: str = ""
+    ghs_pictograms: list[str] = field(default_factory=list)
+    source_url: str = ""
+    raw_text: str = ""
 
 
 # ── Domain Agent Results ───────────────────────────────────────────────────
