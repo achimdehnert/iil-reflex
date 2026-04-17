@@ -7,7 +7,7 @@ name = "iil-reflex"
 version = "0.1.0"
 description = "REFLEX — Reflexive Evidence-based Loop for UI Development"
 readme = "README.md"
-license = "MIT"
+license = {text = "MIT"}
 requires-python = ">=3.11"
 authors = [
     { name = "Achim Dehnert", email = "achim@iil.gmbh" },
@@ -48,11 +48,12 @@ Homepage = "https://github.com/achimdehnert/iil-reflex"
 Repository = "https://github.com/achimdehnert/iil-reflex"
 Documentation = "https://knowledge.iil.pet/doc/adr-162-reflex"
 
+[tool.hatch.build.targets.sdist]
+exclude = [".windsurf", ".github"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["reflex"]
 
-[tool.hatch.build.targets.wheel.force-include]
-"reflex/templates" = "reflex/templates"
 
 [tool.ruff]
 target-version = "py311"
