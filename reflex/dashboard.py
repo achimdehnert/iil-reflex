@@ -78,7 +78,7 @@ HUBS: list[dict[str, Any]] = [
         "color": "amber",
         "category": "product",
         "tags": ["Writing", "AI"],
-        "port": 8007,
+        "port": 8095,
         "container_name": "writing_hub_web",
         "prod_url": "https://writing.iil.pet",
         "sort_order": 25,
@@ -91,7 +91,7 @@ HUBS: list[dict[str, Any]] = [
         "color": "cyan",
         "category": "product",
         "tags": ["Travel"],
-        "port": 8001,
+        "port": 8089,
         "container_name": "travel_beat_web",
         "prod_url": "https://drifttales.app",
         "sort_order": 30,
@@ -104,7 +104,7 @@ HUBS: list[dict[str, Any]] = [
         "color": "pink",
         "category": "product",
         "tags": ["Creative"],
-        "port": 8003,
+        "port": 8081,
         "container_name": "weltenhub_web",
         "prod_url": "https://weltenforger.com",
         "sort_order": 35,
@@ -129,7 +129,7 @@ HUBS: list[dict[str, Any]] = [
         "color": "pink",
         "category": "product",
         "tags": ["Events"],
-        "port": 8006,
+        "port": 8093,
         "container_name": "wedding_hub_web",
         "prod_url": "https://wedding-hub.iil.pet",
         "sort_order": 45,
@@ -142,7 +142,7 @@ HUBS: list[dict[str, Any]] = [
         "color": "green",
         "category": "product",
         "tags": ["CAD", "AI"],
-        "port": 8194,
+        "port": 8094,
         "container_name": "cad_hub_web",
         "prod_url": "https://nl2cad.de",
         "sort_order": 50,
@@ -168,7 +168,7 @@ HUBS: list[dict[str, Any]] = [
         "color": "green",
         "category": "product",
         "tags": ["Finance"],
-        "port": 8005,
+        "port": 8088,
         "container_name": "trading_hub_web",
         "prod_url": "https://ai-trades.de",
         "sort_order": 60,
@@ -194,7 +194,7 @@ HUBS: list[dict[str, Any]] = [
         "color": "green",
         "category": "product",
         "tags": ["Tax", "SaaS"],
-        "port": 8099,
+        "port": 8104,
         "container_name": "tax_hub_web",
         "prod_url": "https://tax.iil.pet",
         "sort_order": 72,
@@ -233,7 +233,7 @@ HUBS: list[dict[str, Any]] = [
         "color": "cyan",
         "category": "product",
         "tags": ["Research", "AI"],
-        "port": 8104,
+        "port": 8098,
         "container_name": "research_hub_web",
         "prod_url": "https://research.iil.pet",
         "sort_order": 75,
@@ -285,11 +285,28 @@ HUBS: list[dict[str, Any]] = [
         "color": "accent",
         "category": "internal",
         "tags": ["HR", "Recruiting"],
-        "port": 8013,
+        "port": 8103,
         "container_name": "recruiting_hub_web",
         "sort_order": 86,
     },
 ]
+
+
+# Compose file search order — local dev first, prod as fallback
+COMPOSE_FILES = (
+    "docker-compose.yml",
+    "docker-compose.local.yml",
+    "docker-compose.dev.yml",
+    "docker-compose.prod.yml",
+)
+
+
+def find_compose_file(repo_path: Path) -> str | None:
+    """Find the best compose file in a repo directory."""
+    for cf in COMPOSE_FILES:
+        if (repo_path / cf).exists():
+            return cf
+    return None
 
 
 @dataclass
@@ -341,10 +358,9 @@ def refresh_all_health(github_dir: str) -> dict[str, HubStatus]:
         repo_path = Path(github_dir) / slug
         if repo_path.is_dir():
             st.repo_path = str(repo_path)
-            for cf in ("docker-compose.yml", "docker-compose.local.yml", "docker-compose.dev.yml"):
-                if (repo_path / cf).exists():
-                    st.compose_file = cf
-                    break
+            cf = find_compose_file(repo_path)
+            if cf:
+                st.compose_file = cf
         results[slug] = st
     with _cache_lock:
         _status_cache.clear()
@@ -366,12 +382,7 @@ def start_hub(slug: str, github_dir: str) -> dict[str, Any]:
     if not repo_path.is_dir():
         return {"ok": False, "error": f"Repo not found: {repo_path}"}
 
-    compose_file = None
-    for cf in ("docker-compose.yml", "docker-compose.local.yml", "docker-compose.dev.yml"):
-        if (repo_path / cf).exists():
-            compose_file = cf
-            break
-
+    compose_file = find_compose_file(repo_path)
     if not compose_file:
         return {"ok": False, "error": f"No docker-compose file in {repo_path}"}
 
@@ -398,12 +409,7 @@ def stop_hub(slug: str, github_dir: str) -> dict[str, Any]:
     if not repo_path.is_dir():
         return {"ok": False, "error": f"Repo not found: {repo_path}"}
 
-    compose_file = None
-    for cf in ("docker-compose.yml", "docker-compose.local.yml", "docker-compose.dev.yml"):
-        if (repo_path / cf).exists():
-            compose_file = cf
-            break
-
+    compose_file = find_compose_file(repo_path)
     if not compose_file:
         return {"ok": False, "error": f"No docker-compose file in {repo_path}"}
 
