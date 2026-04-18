@@ -27,8 +27,10 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 from datetime import UTC, datetime
 from typing import Any
+from urllib.parse import quote
 
 from reflex.types import SDSData, WebPage
 
@@ -159,7 +161,7 @@ class HttpxWebProvider:
                 scraped_at=now,
             )
 
-        except Exception as e:
+        except (OSError, ValueError) as e:
             logger.error("Failed to fetch %s: %s", url, e)
             return WebPage(url=url, title="Error", text=str(e), status_code=0)
 
@@ -202,7 +204,7 @@ class HttpxWebProvider:
 
             return results[:limit]
 
-        except Exception as e:
+        except (OSError, ValueError) as e:
             logger.error("Web search failed: %s", e)
             return []
 
@@ -281,8 +283,10 @@ class PubChemAdapter:
     def _build_sds(self, cid: int, query: str) -> SDSData | None:
         """Build SDSData from multiple PubChem endpoints."""
         props = self._get_properties(cid)
+        time.sleep(0.25)  # rate-limit: PubChem allows ~5 req/s
         iupac = props.get("IUPACName", query)
         cas = self._get_cas_from_synonyms(cid)
+        time.sleep(0.25)
         ghs = self._get_ghs_classification(cid)
         url = f"{self.BASE_URL}/compound/cid/{cid}/JSON"
 
@@ -410,7 +414,7 @@ class PubChemAdapter:
 
     def _get_cid(self, name: str) -> int | None:
         """Get PubChem CID for a substance name."""
-        url = f"{self.BASE_URL}/compound/name/{name}/cids/JSON"
+        url = f"{self.BASE_URL}/compound/name/{quote(name, safe='')}/cids/JSON"
         page = self.web.fetch(url)
         if page.status_code != 200:
             return None
@@ -436,7 +440,7 @@ class GESTISAdapter:
 
     def search(self, query: str) -> list[dict[str, str]]:
         """Search GESTIS for substances matching query."""
-        url = f"{self.SEARCH_URL}?exact=false&query={query}"
+        url = f"{self.SEARCH_URL}?exact=false&query={quote(query, safe='')}"
         page = self.web.fetch(url)
         if page.status_code != 200:
             return []
