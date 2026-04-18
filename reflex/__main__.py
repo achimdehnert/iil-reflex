@@ -322,6 +322,19 @@ def cmd_review(args: argparse.Namespace) -> int:
         print(f"  Auto-fixable: {auto_count}")
     print()
 
+    # Emit metrics to PostgreSQL if requested
+    if getattr(args, "emit_metrics", False):
+        try:
+            from reflex.review.metrics import MetricsWriter
+
+            writer = MetricsWriter()
+            written = writer.write_results(results)
+            if written:
+                print(f"  Metrics: {written} rows written to DB")
+            writer.close()
+        except Exception as e:
+            print(f"  Metrics: failed — {e}", file=sys.stderr)
+
     if args.fail_on == "block" and total_block > 0:
         return 1
     return 0
