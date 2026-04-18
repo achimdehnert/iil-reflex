@@ -13,6 +13,7 @@ Architecture:
     reflex.cycle             → CycleRunner (full dev cycle orchestrator)
     reflex.scaffold          → Scaffold generator for reflex.yaml (ADR-163 Tier 1+2)
     reflex.platform_runner   → PlatformRunner for cross-hub health reports (ADR-163)
+    reflex.dashboard         → Local dev dashboard with app tiles + docker control
     reflex.config            → ReflexConfig from reflex.yaml
     reflex.providers         → KnowledgeProvider, DocumentProvider, WebProvider (Protocol)
     reflex.llm_providers     → AifwProvider, LiteLLMProvider (via iil-aifw / litellm)
@@ -20,7 +21,7 @@ Architecture:
     reflex.types             → Dataclasses (Results, Questions, Entries, WebPage, SDSData)
     reflex.templates/        → promptfw .jinja2 templates (package_data)
     reflex.__main__          → CLI: python -m reflex check/research/scrape/sds/classify/
-                                    uc-create/test-permissions/cycle/verify/init/platform/info
+                                    uc-create/test-permissions/cycle/verify/init/platform/dashboard/info
 
 Usage:
     from reflex.agent import DomainAgent
@@ -35,4 +36,4 @@ Usage:
     state = engine.start("SDS hochladen und validieren")
 """
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"

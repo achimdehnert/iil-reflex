@@ -297,6 +297,16 @@ def cmd_platform(args: argparse.Namespace) -> int:
     return 0 if report.healthy_hubs == report.total_hubs else 1
 
 
+
+
+def cmd_dashboard(args: argparse.Namespace) -> int:
+    """Start local development dashboard (ADR-163)."""
+    from reflex.dashboard import run_dashboard
+
+    github_dir = args.github_dir or str(Path.home() / 'github')
+    run_dashboard(port=args.dashboard_port, github_dir=github_dir)
+    return 0
+
 def cmd_info(args: argparse.Namespace) -> int:
     """Show REFLEX config info."""
     from reflex.config import ReflexConfig
@@ -398,6 +408,12 @@ def main() -> int:
     p_platform.add_argument("--json", "-j", action="store_true", help="Output JSON")
     p_platform.add_argument("--report", "-r", help="Write Markdown report to file")
 
+
+    # dashboard (ADR-163)
+    p_dash = sub.add_parser("dashboard", help="Local dev dashboard — app tiles + docker control")
+    p_dash.add_argument("--dashboard-port", type=int, default=9000, help="Dashboard port (default: 9000)")
+    p_dash.add_argument("--github-dir", default="", help="Path to github repos directory")
+
     # info
     sub.add_parser("info", help="Show config info")
 
@@ -415,6 +431,7 @@ def main() -> int:
         "classify": cmd_classify,
         "init": cmd_init,
         "platform": cmd_platform,
+        "dashboard": cmd_dashboard,
         "info": cmd_info,
     }
     return commands[args.command](args)
