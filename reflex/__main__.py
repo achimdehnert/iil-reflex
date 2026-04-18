@@ -243,6 +243,91 @@ def cmd_sds(args: argparse.Namespace) -> int:
 
 
 
+def cmd_review(args: argparse.Namespace) -> int:
+    """Run REFLEX review plugins on a repo (ADR-165)."""
+    from reflex.review import ReviewEngine
+
+    github_dir = args.github_dir or str(Path.home() / "github")
+    engine = ReviewEngine(github_dir=github_dir)
+
+    if args.review_type == "list":
+        print("\nAvailable review plugins:")
+        for name in engine.available_plugins:
+            print(f"  - {name}")
+        print()
+        return 0
+
+    types = None if args.review_type == "all" else [args.review_type]
+
+    results = engine.run(
+        repo=args.repo,
+        types=types,
+        triggered_by="cli",
+        include_baseline=args.include_baseline,
+        init_baseline=args.init_baseline,
+    )
+
+    if args.json:
+        output = [r.to_dict() for r in results]
+        print(json.dumps(output, indent=2, ensure_ascii=False))
+        if args.fail_on and any(r.has_blockers for r in results):
+            return 1
+        return 0
+
+    total_findings = sum(len(r.findings) for r in results)
+    total_block = sum(len(r.findings_block) for r in results)
+    total_warn = sum(len(r.findings_warn) for r in results)
+    total_info = sum(len(r.findings_info) for r in results)
+
+    print(f"\n{'=' * 60}")
+    print(f"  REFLEX Review: {args.repo}")
+    print(f"{'=' * 60}")
+
+    if args.init_baseline:
+        print(f"  Baseline initialized with {total_findings} findings.")
+        print("  Future runs will only show NEW findings.")
+        print()
+        return 0
+
+    for result in results:
+        dur = f"{result.duration_s:.3f}s"
+        print(f"\n  Plugin: {result.review_type} ({dur})")
+        print(f"  Score:  {result.score_pct}%")
+        if not result.findings:
+            print("  No findings")
+            continue
+        print()
+        for f in result.findings:
+            sev = f.severity.value.upper()
+            auto = " [auto-fixable]" if f.auto_fixable else ""
+            print(f"    [{sev:5s}] {f.rule_id}{auto}")
+            print(f"            {f.message}")
+            if f.adr_ref:
+                print(f"            Ref: {f.adr_ref}")
+            if f.fix_hint:
+                print(f"            Fix: {f.fix_hint}")
+
+    sep = "-" * 60
+    print(f"\n{sep}")
+    total_msg = (
+        f"  Total: {total_findings} findings"
+        f" ({total_block} block, {total_warn} warn,"
+        f" {total_info} info)"
+    )
+    print(total_msg)
+    auto_count = sum(
+        len(r.findings_auto_fixable) for r in results
+    )
+    if auto_count:
+        print(f"  Auto-fixable: {auto_count}")
+    print()
+
+    if args.fail_on == "block" and total_block > 0:
+        return 1
+    return 0
+
+
+
 def cmd_init(args: argparse.Namespace) -> int:
     """Generate reflex.yaml from scaffold template (ADR-163)."""
     from reflex.scaffold import ScaffoldOptions, scaffold, scaffold_force
@@ -414,6 +499,47 @@ def main() -> int:
     p_dash.add_argument("--dashboard-port", type=int, default=9000, help="Dashboard port (default: 9000)")
     p_dash.add_argument("--github-dir", default="", help="Path to github repos directory")
 
+    # review (ADR-165)
+    p_review = sub.add_parser(
+        "review", help="Run infrastructure review plugins (ADR-165)",
+    )
+    p_review.add_argument(
+        "review_type",
+        help="Plugin: repo, compose, adr, port, all, list",
+    )
+    p_review.add_argument(
+        "repo", nargs="?", default=".",
+        help="Repo name (default: current dir)",
+    )
+    p_review.add_argument(
+        "--json", "-j", action="store_true", help="Output JSON",
+    )
+    p_review.add_argument(
+        "--fail-on", choices=["block", "warn"],
+        help="Exit 1 if findings of this severity exist",
+    )
+    p_review.add_argument(
+        "--include-baseline", action="store_true",
+        help="Include baseline findings in output",
+    )
+    p_review.add_argument(
+        "--init-baseline", action="store_true",
+        help="Save current findings as baseline",
+    )
+    p_review.add_argument(
+        "--github-dir", default="",
+        help="Path to github repos directory",
+    )
+    p_review.add_argument(
+        "--emit-metrics", action="store_true",
+        help="Write results to PostgreSQL metrics DB",
+    )
+    p_review.add_argument(
+        "--outline-sync", action="store_true",
+        help="Sync UC overview to Outline wiki",
+    )
+
+
     # info
     sub.add_parser("info", help="Show config info")
 
@@ -432,6 +558,7 @@ def main() -> int:
         "init": cmd_init,
         "platform": cmd_platform,
         "dashboard": cmd_dashboard,
+        "review": cmd_review,
         "info": cmd_info,
     }
     return commands[args.command](args)
