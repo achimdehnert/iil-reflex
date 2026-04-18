@@ -553,6 +553,13 @@ def main() -> int:
     )
 
 
+    # infra (infrastructure lookup)
+    p_infra = sub.add_parser("infra", help="Infrastructure lookup — server, port, DB, domain")
+    p_infra.add_argument("repo", nargs="?", default=".", help="Repo name (default: current dir)")
+    p_infra.add_argument("--all", "-a", action="store_true", help="Show all services")
+    p_infra.add_argument("--json", "-j", action="store_true", help="Output JSON")
+    p_infra.add_argument("--github-dir", default="", help="Path to github repos directory")
+
     # info
     sub.add_parser("info", help="Show config info")
 
@@ -572,6 +579,7 @@ def main() -> int:
         "platform": cmd_platform,
         "dashboard": cmd_dashboard,
         "review": cmd_review,
+        "infra": lambda a: __import__("reflex.infra", fromlist=["cmd_infra"]).cmd_infra(a),
         "info": cmd_info,
     }
     return commands[args.command](args)
