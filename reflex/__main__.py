@@ -557,6 +557,7 @@ def main() -> int:
     p_infra = sub.add_parser("infra", help="Infrastructure lookup — server, port, DB, domain")
     p_infra.add_argument("repo", nargs="?", default=".", help="Repo name (default: current dir)")
     p_infra.add_argument("--all", "-a", action="store_true", help="Show all services")
+    p_infra.add_argument("--live", "-l", action="store_true", help="Live status via SSH (container, HTTP, disk)")
     p_infra.add_argument("--json", "-j", action="store_true", help="Output JSON")
     p_infra.add_argument("--github-dir", default="", help="Path to github repos directory")
 

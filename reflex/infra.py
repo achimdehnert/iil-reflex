@@ -258,9 +258,191 @@ def format_all_table(services: list[dict]) -> str:
     return "\n".join(lines)
 
 
+def _run_ssh(ssh_target: str, command: str, timeout: int = 10) -> str | None:
+    """Run a command via SSH, return stdout or None on failure."""
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            ["ssh", "-o", "ConnectTimeout=5", "-o", "StrictHostKeyChecking=no",
+             ssh_target, command],
+            capture_output=True, text=True, timeout=timeout,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+        return None
+    except Exception:
+        return None
+
+
+def get_live_status(info: dict) -> dict:
+    """Get live status from server via SSH."""
+    ssh = info.get("server_ssh", "")
+    container = info.get("container", "")
+    if not ssh or not container:
+        return {"error": "No SSH target or container name"}
+
+    live = {}
+
+    # Container status
+    status_out = _run_ssh(
+        ssh,
+        f"docker ps --filter 'name=^{container}$' --format '{{{{.Status}}}}' 2>/dev/null"
+    )
+    if status_out:
+        live["container_status"] = status_out
+    else:
+        live["container_status"] = "NOT RUNNING"
+
+    # Container resource usage (CPU, MEM)
+    stats_out = _run_ssh(
+        ssh,
+        f"docker stats {container} --no-stream --format "
+        f"'{{{{.CPUPerc}}}} {{{{.MemUsage}}}} {{{{.MemPerc}}}}' 2>/dev/null"
+    )
+    if stats_out:
+        parts = stats_out.split()
+        if len(parts) >= 3:
+            live["cpu"] = parts[0]
+            live["memory"] = f"{parts[1]} {parts[2]}"
+            live["mem_pct"] = parts[-1] if len(parts) > 3 else parts[2]
+
+    # DB container status (if exists)
+    db_container = info.get("db_container")
+    if db_container:
+        db_status = _run_ssh(
+            ssh,
+            f"docker ps --filter 'name=^{db_container}$' --format '{{{{.Status}}}}' 2>/dev/null"
+        )
+        live["db_status"] = db_status or "NOT RUNNING"
+
+    # Disk usage
+    disk_out = _run_ssh(ssh, "df -h / --output=pcent,avail | tail -1")
+    if disk_out:
+        live["disk"] = disk_out.strip()
+
+    # HTTP health check
+    port = info.get("port_prod")
+    if port:
+        health_out = _run_ssh(
+            ssh,
+            f"curl -s -o /dev/null -w '%{{http_code}}' --max-time 3 http://127.0.0.1:{port}/health/ 2>/dev/null"
+            f" || curl -s -o /dev/null -w '%{{http_code}}' --max-time 3 http://127.0.0.1:{port}/ 2>/dev/null"
+        )
+        if health_out:
+            live["http_status"] = health_out
+
+    # Recent logs (last error)
+    logs_out = _run_ssh(
+        ssh,
+        f"docker logs {container} --tail 5 --since 1h 2>&1 | grep -i 'error\\|exception\\|fatal' | tail -1"
+    )
+    if logs_out:
+        live["last_error"] = logs_out[:120]
+
+    return live
+
+
+def format_live_card(info: dict, live: dict) -> str:
+    """Format info card with live data appended."""
+    card = format_info_card(info)
+
+    lines = [card.rstrip()]
+    lines.append(f"  {'─' * 56}")
+    lines.append(f"  🔴 LIVE STATUS (via SSH)")
+    lines.append(f"  {'─' * 56}")
+
+    # Container
+    status = live.get("container_status", "?")
+    icon = "🟢" if "Up" in status and "healthy" in status else "🟡" if "Up" in status else "🔴"
+    lines.append(f"  {icon} Container: {status}")
+
+    # DB
+    if live.get("db_status"):
+        db_status = live["db_status"]
+        db_icon = "🟢" if "healthy" in db_status else "🟡" if "Up" in db_status else "🔴"
+        lines.append(f"  {db_icon} Database:  {db_status}")
+
+    # Resources
+    if live.get("cpu"):
+        lines.append(f"  📊 CPU: {live['cpu']}  |  Memory: {live.get('memory', '?')}")
+
+    # HTTP
+    if live.get("http_status"):
+        code = live["http_status"]
+        http_icon = "🟢" if code.startswith("2") else "🟡" if code.startswith("3") else "🔴"
+        lines.append(f"  {http_icon} HTTP:      {code}")
+
+    # Disk
+    if live.get("disk"):
+        disk_parts = live["disk"].split()
+        disk_pct = disk_parts[0] if disk_parts else "?"
+        disk_avail = disk_parts[1] if len(disk_parts) > 1 else "?"
+        pct_num = int(disk_pct.replace("%", "")) if "%" in disk_pct else 0
+        disk_icon = "🟢" if pct_num < 70 else "🟡" if pct_num < 85 else "🔴"
+        lines.append(f"  {disk_icon} Disk:      {disk_pct} used, {disk_avail} free")
+
+    # Errors
+    if live.get("last_error"):
+        lines.append(f"  ⚠️  Last Error: {live['last_error']}")
+
+    if live.get("error"):
+        lines.append(f"  ❌ {live['error']}")
+
+    lines.append("")
+    return "\n".join(lines)
+
+
+def format_all_live_table(services: list[dict], github_dir: Path) -> str:
+    """Format all services with live status."""
+    import concurrent.futures
+
+    lines = []
+    lines.append(f"\n{'═' * 90}")
+    lines.append(f"  REFLEX Platform — LIVE STATUS ({len(services)} Services)")
+    lines.append(f"{'═' * 90}")
+    lines.append(f"\n  {'Name':<20} {'Port':<6} {'Status':<28} {'HTTP':<6} {'Domain'}")
+    lines.append(f"  {'─' * 20} {'─' * 6} {'─' * 28} {'─' * 6} {'─' * 25}")
+
+    # Parallel SSH calls for speed
+    def fetch_live(svc):
+        live = get_live_status(svc)
+        return svc["name"], svc, live
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        futures = [pool.submit(fetch_live, svc) for svc in services]
+        results = []
+        for f in concurrent.futures.as_completed(futures):
+            results.append(f.result())
+
+    # Sort by name
+    results.sort(key=lambda x: x[0])
+
+    for name, svc, live in results:
+        port = str(svc.get("port_prod", "?"))
+        status_raw = live.get("container_status", "?")
+        # Shorten status
+        if "healthy" in status_raw:
+            status = "Up (healthy)"
+            icon = "🟢"
+        elif "Up" in status_raw:
+            status = status_raw[:26]
+            icon = "🟡"
+        else:
+            status = "DOWN"
+            icon = "🔴"
+        http = live.get("http_status", "?")
+        domain = svc.get("domain_prod", "")
+        lines.append(f"  {icon} {name:<18} {port:<6} {status:<28} {http:<6} {domain}")
+
+    lines.append("")
+    return "\n".join(lines)
+
+
 def cmd_infra(args) -> int:
     """Execute reflex infra command."""
     github_dir = Path(args.github_dir) if args.github_dir else Path.home() / "github"
+    live_mode = getattr(args, "live", False)
 
     if args.all:
         services = get_all_services(github_dir)
@@ -268,7 +450,12 @@ def cmd_infra(args) -> int:
             print("ERROR: Could not load ports.yaml", file=__import__("sys").stderr)
             return 1
         if args.json:
+            if live_mode:
+                for svc in services:
+                    svc["live"] = get_live_status(svc)
             print(json.dumps(services, indent=2, ensure_ascii=False))
+        elif live_mode:
+            print(format_all_live_table(services, github_dir))
         else:
             print(format_all_table(services))
         return 0
@@ -295,7 +482,13 @@ def cmd_infra(args) -> int:
         return 1
 
     if args.json:
-        print(json.dumps(info, indent=2, ensure_ascii=False))
+        data = info
+        if live_mode:
+            data["live"] = get_live_status(info)
+        print(json.dumps(data, indent=2, ensure_ascii=False))
+    elif live_mode:
+        live = get_live_status(info)
+        print(format_live_card(info, live))
     else:
         print(format_info_card(info))
 
