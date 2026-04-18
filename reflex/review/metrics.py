@@ -69,9 +69,7 @@ class MetricsWriter:
             self._conn.execute(CREATE_TABLE_SQL)
             logger.debug("MetricsWriter: connected + table ensured")
         except ImportError:
-            logger.warning(
-                "psycopg not installed — pip install psycopg[binary] for metrics"
-            )
+            logger.warning("psycopg not installed — pip install psycopg[binary] for metrics")
             raise
         except Exception:
             logger.error("MetricsWriter: DB connection failed", exc_info=True)
@@ -111,7 +109,9 @@ class MetricsWriter:
                 rows += 1
             except Exception:
                 logger.error(
-                    "Failed to write metric for %s/%s", r.repo, r.review_type,
+                    "Failed to write metric for %s/%s",
+                    r.repo,
+                    r.review_type,
                     exc_info=True,
                 )
         if rows:

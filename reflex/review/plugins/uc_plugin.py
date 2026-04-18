@@ -42,8 +42,12 @@ class UCPlugin:
 
     # Valid UC statuses
     VALID_STATUSES = {
-        "draft", "defined", "implemented",
-        "tested", "verified", "deprecated",
+        "draft",
+        "defined",
+        "implemented",
+        "tested",
+        "verified",
+        "deprecated",
     }
 
     def check(self, repo: str, context: dict) -> list[Finding]:
@@ -65,10 +69,7 @@ class UCPlugin:
                 Finding(
                     rule_id="uc.no_uc_directory",
                     severity=ReviewSeverity.WARN,
-                    message=(
-                        "No use-cases directory found. "
-                        "Expected: docs/use-cases/"
-                    ),
+                    message=("No use-cases directory found. Expected: docs/use-cases/"),
                     adr_ref="ADR-162",
                     fix_hint="mkdir -p docs/use-cases/",
                     auto_fixable=True,
@@ -85,10 +86,7 @@ class UCPlugin:
                 Finding(
                     rule_id="uc.no_uc_files",
                     severity=ReviewSeverity.WARN,
-                    message=(
-                        "docs/use-cases/ exists but contains "
-                        "no UC-*.md files"
-                    ),
+                    message=("docs/use-cases/ exists but contains no UC-*.md files"),
                     adr_ref="ADR-162",
                     fix_hint="Create UCs with: reflex uc-create",
                 )
@@ -98,16 +96,12 @@ class UCPlugin:
         # Analyze each UC
         status_counts: dict[str, int] = {}
         for uc_file in uc_files:
-            uc_findings = self._check_uc_file(
-                uc_file, repo_path
-            )
+            uc_findings = self._check_uc_file(uc_file, repo_path)
             findings.extend(uc_findings)
 
             # Count statuses
             status = self._extract_status(uc_file)
-            status_counts[status] = (
-                status_counts.get(status, 0) + 1
-            )
+            status_counts[status] = status_counts.get(status, 0) + 1
 
         # UC count check (Tier 1 should have >= 3)
         if len(uc_files) < 3:
@@ -115,10 +109,7 @@ class UCPlugin:
                 Finding(
                     rule_id="uc.low_uc_count",
                     severity=ReviewSeverity.INFO,
-                    message=(
-                        f"Only {len(uc_files)} UC(s) defined. "
-                        "Tier 1 repos should have >= 3."
-                    ),
+                    message=(f"Only {len(uc_files)} UC(s) defined. Tier 1 repos should have >= 3."),
                     adr_ref="ADR-163",
                 )
             )
@@ -131,10 +122,7 @@ class UCPlugin:
                 Finding(
                     rule_id="uc.all_draft",
                     severity=ReviewSeverity.WARN,
-                    message=(
-                        f"All {total} UCs are in Draft status. "
-                        "Progress UCs to Implemented/Tested."
-                    ),
+                    message=(f"All {total} UCs are in Draft status. Progress UCs to Implemented/Tested."),
                     adr_ref="ADR-162",
                 )
             )
@@ -157,18 +145,14 @@ class UCPlugin:
         """Extract status from UC file."""
         try:
             text = uc_file.read_text(encoding="utf-8")
-            match = re.search(
-                r"\*\*Status:\*\*\s*(\w+)", text
-            )
+            match = re.search(r"\*\*Status:\*\*\s*(\w+)", text)
             if match:
                 return match.group(1).lower()
-        except Exception:
+        except (OSError, UnicodeDecodeError):
             pass
         return "unknown"
 
-    def _check_uc_file(
-        self, uc_file: Path, repo_path: Path
-    ) -> list[Finding]:
+    def _check_uc_file(self, uc_file: Path, repo_path: Path) -> list[Finding]:
         """Check individual UC file for quality."""
         findings: list[Finding] = []
         rel_path = str(uc_file.relative_to(repo_path))
@@ -203,10 +187,7 @@ class UCPlugin:
                     Finding(
                         rule_id=f"uc.missing_section_{section}",
                         severity=ReviewSeverity.BLOCK,
-                        message=(
-                            f"{uc_name}: Missing required "
-                            f"section '{section}'"
-                        ),
+                        message=(f"{uc_name}: Missing required section '{section}'"),
                         adr_ref="ADR-162",
                         file_path=rel_path,
                     )
@@ -223,33 +204,22 @@ class UCPlugin:
             if not has_heading and not has_bold:
                 findings.append(
                     Finding(
-                        rule_id=(
-                            f"uc.missing_recommended_{section}"
-                        ),
+                        rule_id=(f"uc.missing_recommended_{section}"),
                         severity=ReviewSeverity.INFO,
-                        message=(
-                            f"{uc_name}: Missing recommended "
-                            f"section '{section}'"
-                        ),
+                        message=(f"{uc_name}: Missing recommended section '{section}'"),
                         adr_ref="ADR-162",
                         file_path=rel_path,
                     )
                 )
 
         # Check minimum content length (< 100 chars = stub)
-        content_lines = [
-            ln for ln in text.split("\n")
-            if ln.strip() and not ln.startswith("#")
-        ]
+        content_lines = [ln for ln in text.split("\n") if ln.strip() and not ln.startswith("#")]
         if len(content_lines) < 5:
             findings.append(
                 Finding(
                     rule_id="uc.stub_content",
                     severity=ReviewSeverity.WARN,
-                    message=(
-                        f"{uc_name}: UC appears to be a stub "
-                        f"({len(content_lines)} content lines)"
-                    ),
+                    message=(f"{uc_name}: UC appears to be a stub ({len(content_lines)} content lines)"),
                     file_path=rel_path,
                 )
             )

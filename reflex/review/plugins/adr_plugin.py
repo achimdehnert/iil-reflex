@@ -104,10 +104,7 @@ class ADRPlugin:
                 Finding(
                     rule_id="adr.invalid_status",
                     severity=ReviewSeverity.WARN,
-                    message=(
-                        f"{adr_name}: Invalid status '{status}'"
-                        f" — must be one of {self.VALID_STATUSES}"
-                    ),
+                    message=(f"{adr_name}: Invalid status '{status}' — must be one of {self.VALID_STATUSES}"),
                     file_path=rel_path,
                 )
             )
@@ -120,10 +117,7 @@ class ADRPlugin:
                     Finding(
                         rule_id="adr.missing_implementation_status",
                         severity=ReviewSeverity.BLOCK,
-                        message=(
-                            f"{adr_name}: Accepted ADR missing"
-                            " 'implementation_status' (ADR-138)"
-                        ),
+                        message=(f"{adr_name}: Accepted ADR missing 'implementation_status' (ADR-138)"),
                         adr_ref="ADR-138",
                         file_path=rel_path,
                         auto_fixable=True,
@@ -151,9 +145,7 @@ class ADRPlugin:
                             rule_id="adr.missing_implementation_evidence",
                             severity=ReviewSeverity.WARN,
                             message=(
-                                f"{adr_name}: implementation_status="
-                                f"'{impl_status}' but no"
-                                " implementation_evidence"
+                                f"{adr_name}: implementation_status='{impl_status}' but no implementation_evidence"
                             ),
                             adr_ref="ADR-138",
                             file_path=rel_path,

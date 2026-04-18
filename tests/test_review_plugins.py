@@ -405,3 +405,128 @@ class TestUCPlugin:
         assert any(
             f.rule_id == "uc.low_uc_count" for f in findings
         )
+
+
+# ── InfraPlugin ──────────────────────────────────────────────────────────────
+
+
+class TestInfraPlugin:
+    """Tests for the infrastructure health plugin."""
+
+    def test_should_report_no_backup_script(self, tmp_path: Path):
+        repo = tmp_path / "test-hub"
+        repo.mkdir()
+        plugin = InfraPlugin()
+        findings = plugin.check("test-hub", {"repo_path": str(repo)})
+        rule_ids = {f.rule_id for f in findings}
+        assert "infra.no_backup_script" in rule_ids
+
+    def test_should_detect_backup_without_retention(self, tmp_path: Path):
+        repo = tmp_path / "test-hub"
+        scripts = repo / "scripts"
+        scripts.mkdir(parents=True)
+        (scripts / "backup.sh").write_text(
+            "#!/bin/bash\n"
+            "DATE=$(date +%Y-%m-%d)\n"
+            "docker exec db pg_dump -U app app | gzip > /opt/backups/$DATE.sql.gz\n"
+        )
+        plugin = InfraPlugin()
+        findings = plugin.check("test-hub", {"repo_path": str(repo)})
+        rule_ids = {f.rule_id for f in findings}
+        assert "infra.backup_no_retention" in rule_ids
+
+    def test_should_pass_backup_with_retention(self, tmp_path: Path):
+        repo = tmp_path / "test-hub"
+        scripts = repo / "scripts"
+        scripts.mkdir(parents=True)
+        (scripts / "backup.sh").write_text(
+            "#!/bin/bash\n"
+            "KEEP_DAYS=3\n"
+            "DISK_PCT=$(df / --output=pcent | tail -1 | tr -d ' %')\n"
+            "MAX_BACKUP_GB=10\n"
+            "find /opt/backups -mtime +$KEEP_DAYS -delete\n"
+        )
+        plugin = InfraPlugin()
+        findings = plugin.check("test-hub", {"repo_path": str(repo)})
+        rule_ids = {f.rule_id for f in findings}
+        assert "infra.backup_no_retention" not in rule_ids
+        assert "infra.backup_no_disk_check" not in rule_ids
+        assert "infra.backup_no_size_limit" not in rule_ids
+
+    def test_should_detect_backup_no_disk_check(self, tmp_path: Path):
+        repo = tmp_path / "test-hub"
+        scripts = repo / "scripts"
+        scripts.mkdir(parents=True)
+        (scripts / "backup.sh").write_text(
+            "#!/bin/bash\n"
+            "KEEP_DAYS=3\n"
+            "find /opt/backups -mtime +$KEEP_DAYS -delete\n"
+        )
+        plugin = InfraPlugin()
+        findings = plugin.check("test-hub", {"repo_path": str(repo)})
+        rule_ids = {f.rule_id for f in findings}
+        assert "infra.backup_no_disk_check" in rule_ids
+
+    def test_should_detect_export_without_cleanup(self, tmp_path: Path):
+        repo = tmp_path / "test-hub"
+        scripts = repo / "scripts"
+        scripts.mkdir(parents=True)
+        (scripts / "backup.sh").write_text(
+            "#!/bin/bash\n"
+            "KEEP_DAYS=1\n"
+            "DISK_PCT=$(df / --output=pcent | tail -1)\n"
+            "MAX_BACKUP_GB=15\n"
+            "find /opt/backups -mtime +$KEEP_DAYS -delete\n"
+            "cp $EXPORT_VOL/export-$DATE.zip $BACKUP_DIR/\n"
+        )
+        plugin = InfraPlugin()
+        findings = plugin.check("test-hub", {"repo_path": str(repo)})
+        rule_ids = {f.rule_id for f in findings}
+        assert "infra.backup_no_export_cleanup" in rule_ids
+
+    def test_should_detect_no_health_endpoint(self, tmp_path: Path):
+        repo = tmp_path / "test-hub"
+        repo.mkdir()
+        plugin = InfraPlugin()
+        findings = plugin.check("test-hub", {"repo_path": str(repo)})
+        rule_ids = {f.rule_id for f in findings}
+        assert "infra.no_health_endpoint" in rule_ids
+
+    def test_should_pass_with_health_urls(self, tmp_path: Path):
+        repo = tmp_path / "test-hub"
+        config = repo / "config"
+        config.mkdir(parents=True)
+        (config / "urls.py").write_text(
+            "from django.urls import path\n"
+            "from common.views import liveness, readiness\n"
+            "urlpatterns = [\n"
+            "    path('livez/', liveness),\n"
+            "    path('healthz/', readiness),\n"
+            "]\n"
+        )
+        common = repo / "common"
+        common.mkdir(parents=True)
+        (common / "healthz.py").write_text(
+            "import shutil\n"
+            "def readiness(request):\n"
+            "    total, used, free = shutil.disk_usage('/')\n"
+            "    return JsonResponse({'disk': 'ok'})\n"
+        )
+        plugin = InfraPlugin()
+        findings = plugin.check("test-hub", {"repo_path": str(repo)})
+        rule_ids = {f.rule_id for f in findings}
+        assert "infra.no_health_endpoint" not in rule_ids
+        assert "infra.no_livez_url" not in rule_ids
+        assert "infra.no_healthz_url" not in rule_ids
+
+    def test_should_collect_metrics(self, tmp_path: Path):
+        repo = tmp_path / "test-hub"
+        scripts = repo / "scripts"
+        scripts.mkdir(parents=True)
+        (scripts / "backup.sh").write_text(
+            "#!/bin/bash\nKEEP_DAYS=1\nfind /opt -mtime +1 -delete\n"
+        )
+        plugin = InfraPlugin()
+        plugin.check("test-hub", {"repo_path": str(repo)})
+        assert hasattr(plugin, "last_metrics")
+        assert plugin.last_metrics["backup_scripts"] == 1

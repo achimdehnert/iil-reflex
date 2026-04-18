@@ -29,12 +29,16 @@ import json as json_module
 import logging
 import time
 from dataclasses import dataclass, field
+from datetime import UTC
 from pathlib import Path
 from typing import Any
 
 import yaml
 
 logger = logging.getLogger(__name__)
+
+
+__all__ = ["HubEntry", "HubReport", "PlatformReport", "PlatformRunner"]
 
 
 @dataclass
@@ -153,11 +157,11 @@ class PlatformRunner:
 
     def run_all(self) -> PlatformReport:
         """Run checks on all configured hubs."""
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         start = time.time()
         report = PlatformReport(
-            generated_at=datetime.now(timezone.utc).isoformat(),
+            generated_at=datetime.now(UTC).isoformat(),
         )
 
         for hub in self.hubs:
@@ -184,9 +188,7 @@ class PlatformRunner:
             config_dir = Path(hub.config_path).parent
             uc_dir = config_dir / "docs" / "use-cases"
             if uc_dir.exists():
-                hr.uc_count = sum(
-                    1 for f in uc_dir.glob("UC-*.md")
-                )
+                hr.uc_count = sum(1 for f in uc_dir.glob("UC-*.md"))
 
         # Health check via HTTP
         try:
@@ -225,12 +227,12 @@ class PlatformRunner:
                             if resp.status_code == expected:
                                 hr.routes_ok += 1
                         except Exception:
-                            pass
+                            pass  # route check — connection failures are expected
 
                     # Permission matrix count (Tier 1 only)
                     if hub.tier == 1:
                         perm_matrix = config_raw.get("permissions_matrix", {})
-                        for url, roles in perm_matrix.items():
+                        for _url, roles in perm_matrix.items():
                             hr.permissions_total += len(roles)
 
         except httpx.ConnectError:
@@ -244,20 +246,20 @@ class PlatformRunner:
     @staticmethod
     def print_report(report: PlatformReport) -> None:
         """Print human-readable platform report to stdout."""
-        print(f"\n{'='*80}")
+        print(f"\n{'=' * 80}")
         print("  REFLEX Platform Health Report")
-        print(f"{'='*80}")
+        print(f"{'=' * 80}")
         print(f"  Generated: {report.generated_at}")
         print(f"  Duration:  {report.total_duration_seconds:.1f}s")
         print(f"  Hubs:      {report.healthy_hubs}/{report.total_hubs} healthy")
-        print(f"{'='*80}\n")
+        print(f"{'=' * 80}\n")
 
         # Tier 1
         if report.tier1_hubs:
             print("  Tier 1 — Full Reflex")
-            print(f"  {'─'*76}")
+            print(f"  {'─' * 76}")
             print(f"  {'Hub':<22} {'Health':>6} {'Routes':>10} {'Perms':>10} {'UCs':>4} {'Time':>6}")
-            print(f"  {'─'*76}")
+            print(f"  {'─' * 76}")
             for h in report.tier1_hubs:
                 routes_str = f"{h.routes_ok}/{h.routes_total}" if h.routes_total else "—"
                 perms_str = f"{h.permissions_ok}/{h.permissions_total}" if h.permissions_total else "—"
@@ -274,21 +276,18 @@ class PlatformRunner:
         # Tier 2
         if report.tier2_hubs:
             print("  Tier 2 — Reflex Light")
-            print(f"  {'─'*76}")
+            print(f"  {'─' * 76}")
             print(f"  {'Hub':<22} {'Health':>6} {'Routes':>10} {'Time':>6}")
-            print(f"  {'─'*76}")
+            print(f"  {'─' * 76}")
             for h in report.tier2_hubs:
                 routes_str = f"{h.routes_ok}/{h.routes_total}" if h.routes_total else "—"
                 health_str = "✅" if h.health_ok else ("❌" if h.error else "⬜")
-                print(
-                    f"  {h.name:<22} {health_str:>6} {routes_str:>10} "
-                    f"{h.duration_seconds:>5.1f}s"
-                )
+                print(f"  {h.name:<22} {health_str:>6} {routes_str:>10} {h.duration_seconds:>5.1f}s")
                 if h.error:
                     print(f"    ⚠ {h.error}")
             print()
 
-        print(f"{'='*80}\n")
+        print(f"{'=' * 80}\n")
 
     @staticmethod
     def to_json(report: PlatformReport) -> str:
@@ -331,12 +330,14 @@ class PlatformRunner:
         ]
 
         if report.tier1_hubs:
-            lines.extend([
-                "## Tier 1 — Full Reflex",
-                "",
-                "| Hub | Health | Routes | Permissions | UCs | Time |",
-                "|-----|--------|--------|-------------|-----|------|",
-            ])
+            lines.extend(
+                [
+                    "## Tier 1 — Full Reflex",
+                    "",
+                    "| Hub | Health | Routes | Permissions | UCs | Time |",
+                    "|-----|--------|--------|-------------|-----|------|",
+                ]
+            )
             for h in report.tier1_hubs:
                 routes_str = f"{h.routes_ok}/{h.routes_total}" if h.routes_total else "—"
                 perms_str = f"{h.permissions_ok}/{h.permissions_total}" if h.permissions_total else "—"
@@ -348,27 +349,29 @@ class PlatformRunner:
             lines.append("")
 
         if report.tier2_hubs:
-            lines.extend([
-                "## Tier 2 — Reflex Light",
-                "",
-                "| Hub | Health | Routes | Time |",
-                "|-----|--------|--------|------|",
-            ])
+            lines.extend(
+                [
+                    "## Tier 2 — Reflex Light",
+                    "",
+                    "| Hub | Health | Routes | Time |",
+                    "|-----|--------|--------|------|",
+                ]
+            )
             for h in report.tier2_hubs:
                 routes_str = f"{h.routes_ok}/{h.routes_total}" if h.routes_total else "—"
                 health_str = "✅" if h.health_ok else "❌"
-                lines.append(
-                    f"| {h.name} | {health_str} | {routes_str} | {h.duration_seconds:.1f}s |"
-                )
+                lines.append(f"| {h.name} | {health_str} | {routes_str} | {h.duration_seconds:.1f}s |")
             lines.append("")
 
         # Errors
         error_hubs = [h for h in report.hubs if h.error]
         if error_hubs:
-            lines.extend([
-                "## Errors",
-                "",
-            ])
+            lines.extend(
+                [
+                    "## Errors",
+                    "",
+                ]
+            )
             for h in error_hubs:
                 lines.append(f"- **{h.name}**: {h.error}")
             lines.append("")

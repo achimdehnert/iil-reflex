@@ -27,6 +27,17 @@ from typing import Protocol, runtime_checkable
 
 from reflex.types import DocumentEntry, KnowledgeEntry, WebPage
 
+__all__ = [
+    "KnowledgeProvider",
+    "DocumentProvider",
+    "WebProvider",
+    "LLMProvider",
+    "MockKnowledgeProvider",
+    "MockDocumentProvider",
+    "MockWebProvider",
+    "MockLLMProvider",
+]
+
 # ── Protocols ──────────────────────────────────────────────────────────────
 
 
@@ -84,15 +95,12 @@ class MockKnowledgeProvider:
         self._entries = entries or []
 
     def search(self, query: str, limit: int = 5) -> list[KnowledgeEntry]:
-        return [
-            e for e in self._entries
-            if query.lower() in e.title.lower() or query.lower() in e.content.lower()
-        ][:limit]
+        return [e for e in self._entries if query.lower() in e.title.lower() or query.lower() in e.content.lower()][
+            :limit
+        ]
 
     def add(self, title: str, content: str, source: str = "mock") -> None:
-        self._entries.append(
-            KnowledgeEntry(title=title, content=content, source=source)
-        )
+        self._entries.append(KnowledgeEntry(title=title, content=content, source=source))
 
 
 class MockDocumentProvider:
@@ -102,15 +110,12 @@ class MockDocumentProvider:
         self._entries = entries or []
 
     def search(self, query: str, limit: int = 5) -> list[DocumentEntry]:
-        return [
-            e for e in self._entries
-            if query.lower() in e.title.lower() or query.lower() in e.snippet.lower()
-        ][:limit]
+        return [e for e in self._entries if query.lower() in e.title.lower() or query.lower() in e.snippet.lower()][
+            :limit
+        ]
 
     def add(self, title: str, snippet: str, source: str = "mock") -> None:
-        self._entries.append(
-            DocumentEntry(title=title, snippet=snippet, source=source)
-        )
+        self._entries.append(DocumentEntry(title=title, snippet=snippet, source=source))
 
 
 class MockWebProvider:
@@ -125,10 +130,9 @@ class MockWebProvider:
         return WebPage(url=url, title="Not Found", text="", status_code=404)
 
     def search_web(self, query: str, limit: int = 5) -> list[WebPage]:
-        return [
-            p for p in self._pages.values()
-            if query.lower() in p.title.lower() or query.lower() in p.text.lower()
-        ][:limit]
+        return [p for p in self._pages.values() if query.lower() in p.title.lower() or query.lower() in p.text.lower()][
+            :limit
+        ]
 
     def add(self, url: str, title: str, text: str) -> None:
         self._pages[url] = WebPage(url=url, title=title, text=text)

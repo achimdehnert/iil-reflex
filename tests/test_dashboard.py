@@ -135,7 +135,7 @@ class TestHealthCheck:
         assert st.repo_path == ""
         assert not st.starting
 
-    @patch("reflex.dashboard.urlopen")
+    @patch("reflex.dashboard.health.urlopen")
     def test_should_detect_healthy_hub(self, mock_urlopen):
         mock_resp = MagicMock()
         mock_resp.status = 200
@@ -144,7 +144,7 @@ class TestHealthCheck:
         assert st.healthy
         assert st.response_ms >= 0
 
-    @patch("reflex.dashboard.urlopen")
+    @patch("reflex.dashboard.health.urlopen")
     def test_should_try_healthz_if_livez_fails(self, mock_urlopen):
         """Falls back from /livez/ to /healthz/."""
         from urllib.error import URLError
@@ -187,7 +187,7 @@ class TestDockerControl:
         assert not result["ok"]
         assert "docker-compose" in result["error"].lower()
 
-    @patch("reflex.dashboard.subprocess.run")
+    @patch("reflex.dashboard.health.subprocess.run")
     def test_should_start_with_compose_yml(self, mock_run, tmp_path):
         hub_dir = tmp_path / "test-hub"
         hub_dir.mkdir()
@@ -198,7 +198,7 @@ class TestDockerControl:
         cmd = mock_run.call_args[0][0]
         assert "docker-compose.yml" in cmd
 
-    @patch("reflex.dashboard.subprocess.run")
+    @patch("reflex.dashboard.health.subprocess.run")
     def test_should_start_with_prod_yml_fallback(self, mock_run, tmp_path):
         """Repos with only docker-compose.prod.yml must still be startable."""
         hub_dir = tmp_path / "test-hub"
@@ -210,7 +210,7 @@ class TestDockerControl:
         cmd = mock_run.call_args[0][0]
         assert "docker-compose.prod.yml" in cmd
 
-    @patch("reflex.dashboard.subprocess.run")
+    @patch("reflex.dashboard.health.subprocess.run")
     def test_should_stop_with_compose(self, mock_run, tmp_path):
         hub_dir = tmp_path / "test-hub"
         hub_dir.mkdir()
@@ -219,7 +219,7 @@ class TestDockerControl:
         result = stop_hub("test-hub", str(tmp_path))
         assert result["ok"]
 
-    @patch("reflex.dashboard.subprocess.run")
+    @patch("reflex.dashboard.health.subprocess.run")
     def test_should_report_docker_errors(self, mock_run, tmp_path):
         hub_dir = tmp_path / "test-hub"
         hub_dir.mkdir()
@@ -289,7 +289,7 @@ class TestRefreshHealth:
     def test_should_return_status_for_all_hubs(self, tmp_path):
         for hub in HUBS:
             (tmp_path / hub["slug"]).mkdir()
-        with patch("reflex.dashboard.check_hub_health") as mock_check:
+        with patch("reflex.dashboard.health.check_hub_health") as mock_check:
             mock_check.return_value = HubStatus(slug="x", healthy=False)
             results = refresh_all_health(str(tmp_path))
         assert len(results) == len(HUBS)
@@ -298,7 +298,7 @@ class TestRefreshHealth:
         hub_dir = tmp_path / "risk-hub"
         hub_dir.mkdir()
         (hub_dir / "docker-compose.prod.yml").write_text("version: '3'")
-        with patch("reflex.dashboard.check_hub_health") as mock_check:
+        with patch("reflex.dashboard.health.check_hub_health") as mock_check:
             mock_check.return_value = HubStatus(slug="risk-hub")
             results = refresh_all_health(str(tmp_path))
         assert results["risk-hub"].compose_file == "docker-compose.prod.yml"
@@ -306,13 +306,13 @@ class TestRefreshHealth:
     def test_should_set_repo_path(self, tmp_path):
         hub_dir = tmp_path / "bfagent"
         hub_dir.mkdir()
-        with patch("reflex.dashboard.check_hub_health") as mock_check:
+        with patch("reflex.dashboard.health.check_hub_health") as mock_check:
             mock_check.return_value = HubStatus(slug="bfagent")
             results = refresh_all_health(str(tmp_path))
         assert results["bfagent"].repo_path == str(hub_dir)
 
     def test_should_update_cache(self, tmp_path):
-        with patch("reflex.dashboard.check_hub_health") as mock_check:
+        with patch("reflex.dashboard.health.check_hub_health") as mock_check:
             mock_check.return_value = HubStatus(slug="x", healthy=False)
             refresh_all_health(str(tmp_path))
         cached = get_cached_status()

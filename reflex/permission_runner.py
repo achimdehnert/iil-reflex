@@ -41,6 +41,9 @@ from reflex.types import PermissionTestResult
 logger = logging.getLogger(__name__)
 
 
+__all__ = ["ReflexTestUser", "PermissionReport", "PermissionRunner"]
+
+
 @dataclass
 class ReflexTestUser:
     """Test user definition from reflex.yaml."""
@@ -158,9 +161,7 @@ class PermissionRunner:
         try:
             import httpx
         except ImportError:
-            raise ImportError(
-                "httpx is required for permission testing. Install: pip install httpx"
-            )
+            raise ImportError("httpx is required for permission testing. Install: pip install httpx") from None
 
         report = PermissionReport(base_url=self.base_url)
         sessions: dict[str, httpx.Client] = {}
@@ -172,14 +173,10 @@ class PermissionRunner:
                         actual = self._test_anonymous(url, httpx)
                     else:
                         if role not in sessions:
-                            sessions[role] = self._create_authenticated_session(
-                                role, httpx
-                            )
+                            sessions[role] = self._create_authenticated_session(role, httpx)
                         session = sessions.get(role)
                         if session is None:
-                            logger.warning(
-                                "Could not create session for role %s — skipping", role
-                            )
+                            logger.warning("Could not create session for role %s — skipping", role)
                             continue
                         actual = self._test_authenticated(url, session)
 
@@ -199,7 +196,11 @@ class PermissionRunner:
                     icon = "✅" if result.passed else "❌"
                     logger.info(
                         "%s %s %s: expected=%d actual=%d",
-                        icon, role, url, expected_status, actual,
+                        icon,
+                        role,
+                        url,
+                        expected_status,
+                        actual,
                     )
 
         finally:
@@ -211,9 +212,7 @@ class PermissionRunner:
     def _test_anonymous(self, url: str, httpx_mod: Any) -> int:
         """Test a URL without authentication."""
         try:
-            with httpx_mod.Client(
-                follow_redirects=False, timeout=self.timeout
-            ) as client:
+            with httpx_mod.Client(follow_redirects=False, timeout=self.timeout) as client:
                 resp = client.get(f"{self.base_url}{url}")
                 return resp.status_code
         except Exception as e:
@@ -229,9 +228,7 @@ class PermissionRunner:
             logger.error("Authenticated test failed for %s: %s", url, e)
             return 0
 
-    def _create_authenticated_session(
-        self, role: str, httpx_mod: Any
-    ) -> Any | None:
+    def _create_authenticated_session(self, role: str, httpx_mod: Any) -> Any | None:
         """Create an authenticated httpx session for a test user."""
         user = self.test_users.get(role)
         if not user:
@@ -239,9 +236,7 @@ class PermissionRunner:
             return None
 
         try:
-            session = httpx_mod.Client(
-                follow_redirects=False, timeout=self.timeout
-            )
+            session = httpx_mod.Client(follow_redirects=False, timeout=self.timeout)
 
             # GET login page to obtain CSRF token
             login_resp = session.get(f"{self.base_url}{self.login_url}")
@@ -268,9 +263,7 @@ class PermissionRunner:
                 logger.info("Logged in as %s (role: %s)", user.username, role)
                 return session
             else:
-                logger.warning(
-                    "Login failed for %s: status=%d", role, resp.status_code
-                )
+                logger.warning("Login failed for %s: status=%d", role, resp.status_code)
                 session.close()
                 return None
 
@@ -296,15 +289,15 @@ class PermissionRunner:
     @staticmethod
     def print_report(report: PermissionReport) -> None:
         """Print human-readable permission test report."""
-        print(f"\n{'='*70}")
-        print("  REFLEX Permission Matrix Test Report")
-        print(f"{'='*70}")
-        print(f"  Base URL: {report.base_url}")
-        print(f"  Total:    {report.total}")
-        print(f"  Passed:   {report.passed}")
-        print(f"  Failed:   {report.failed}")
-        print(f"  Rate:     {report.pass_rate:.0f}%")
-        print(f"{'='*70}\n")
+        logger.info(f"\n{'=' * 70}")
+        logger.info("  REFLEX Permission Matrix Test Report")
+        logger.info(f"{'=' * 70}")
+        logger.info(f"  Base URL: {report.base_url}")
+        logger.info(f"  Total:    {report.total}")
+        logger.info(f"  Passed:   {report.passed}")
+        logger.info(f"  Failed:   {report.failed}")
+        logger.info(f"  Rate:     {report.pass_rate:.0f}%")
+        logger.info(f"{'=' * 70}\n")
 
         # Group by URL
         by_url: dict[str, list[PermissionTestResult]] = {}
@@ -313,21 +306,17 @@ class PermissionRunner:
 
         for url, results in sorted(by_url.items()):
             roles_str = "  ".join(
-                f"{'✅' if r.passed else '❌'}{r.role}:{r.actual_status}"
-                for r in sorted(results, key=lambda x: x.role)
+                f"{'✅' if r.passed else '❌'}{r.role}:{r.actual_status}" for r in sorted(results, key=lambda x: x.role)
             )
-            print(f"  {url}")
-            print(f"    {roles_str}")
+            logger.info(f"  {url}")
+            logger.info(f"    {roles_str}")
 
         if report.failed > 0:
-            print(f"\n  ❌ FAILURES ({report.failed}):")
+            logger.error(f"\n  ❌ FAILURES ({report.failed}):")
             for r in report.failures_only():
-                print(
-                    f"    {r.url} [{r.role}]: "
-                    f"expected {r.expected_status}, got {r.actual_status}"
-                )
+                logger.info(f"    {r.url} [{r.role}]: expected {r.expected_status}, got {r.actual_status}")
 
-        print()
+        logger.info()
 
     @staticmethod
     def to_json(report: PermissionReport) -> str:

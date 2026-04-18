@@ -9,12 +9,35 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
+
+__all__ = [
+    "UCStatus",
+    "FailureType",
+    "Severity",
+    "KnowledgeEntry",
+    "DocumentEntry",
+    "WebPage",
+    "SDSData",
+    "DomainResearchResult",
+    "InterviewQuestion",
+    "DomainKBResult",
+    "QualityCriterion",
+    "UCQualityResult",
+    "UCValidationResult",
+    "ClassifyResult",
+    "TestRunResult",
+    "TestFailureInfo",
+    "HTMXFinding",
+    "TestIDCoverage",
+    "ViewportResult",
+    "PermissionTestResult",
+]
 
 # ── Enums ──────────────────────────────────────────────────────────────────
 
 
-class UCStatus(str, Enum):
+class UCStatus(StrEnum):
     """Use Case lifecycle status."""
 
     DRAFT = "draft"
@@ -26,7 +49,7 @@ class UCStatus(str, Enum):
     ARCHIVED = "archived"
 
 
-class FailureType(str, Enum):
+class FailureType(StrEnum):
     """Root cause classification for test failures."""
 
     UC_PROBLEM = "uc_problem"
@@ -35,7 +58,7 @@ class FailureType(str, Enum):
     UNKNOWN = "unknown"
 
 
-class Severity(str, Enum):
+class Severity(StrEnum):
     """Finding severity."""
 
     BLOCKER = "blocker"

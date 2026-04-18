@@ -37,7 +37,6 @@ Usage (CLI — interactive):
 
 from __future__ import annotations
 
-import json
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -48,6 +47,9 @@ from reflex.quality import UCQualityChecker
 from reflex.types import QualityCriterion, UCQualityResult
 
 logger = logging.getLogger(__name__)
+
+
+__all__ = ["TEMPLATES_DIR", "UCDialogState", "UCDialogEngine"]
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 
@@ -95,10 +97,10 @@ class UCDialogEngine:
         "C-01": "Wer ist der konkrete Akteur? (z.B. 'Der Sicherheitsingenieur', 'Ein SDS-Prüfer')",
         "C-02": "Was ist das Ziel des Use Cases? Was soll am Ende erreicht sein?",
         "C-03": "Beschreibe die Hauptschritte (max. 7): Was passiert der Reihe nach?",
-        "C-04": "Der UC hat zu viele Schritte. Welche Schritte können zusammengefasst oder in Sub-UCs ausgelagert werden?",
-        "C-05": "Was kann schiefgehen? Nenne mindestens einen Fehlerfall (z.B. ungültige Eingabe, fehlende Berechtigung).",
+        "C-04": "Der UC hat zu viele Schritte. Welche Schritte können zusammengefasst oder in Sub-UCs ausgelagert werden?",  # noqa: E501
+        "C-05": "Was kann schiefgehen? Nenne mindestens einen Fehlerfall (z.B. ungültige Eingabe, fehlende Berechtigung).",  # noqa: E501
         "C-06": "Formuliere testbare Akzeptanzkriterien im GIVEN/WHEN/THEN Format.",
-        "C-07": "Der UC enthält technische Details. Bitte nur beschreiben WAS passiert, nicht WIE (kein HTMX, Django, etc.).",
+        "C-07": "Der UC enthält technische Details. Bitte nur beschreiben WAS passiert, nicht WIE (kein HTMX, Django, etc.).",  # noqa: E501
         "C-08": "Bitte 'sollte/könnte/vielleicht' durch verbindliche Formulierungen ersetzen ('muss', 'wird').",
         "C-09": "Die Kriterien sind nicht messbar. Verwende beobachtbare Verben: 'zeigt', 'enthält', 'navigiert zu'.",
         "C-10": "Was gehört NICHT zum Scope dieses UC? (z.B. 'Nicht Teil: Löschung, Export')",
@@ -131,19 +133,14 @@ class UCDialogEngine:
             max_iterations=self.max_iterations,
         )
 
-        if self.llm:
-            uc_text = self._generate_skeleton(topic, context)
-        else:
-            uc_text = self._generate_template(topic)
+        uc_text = self._generate_skeleton(topic, context) if self.llm else self._generate_template(topic)
 
         state.uc_text = uc_text
         state.iteration = 1
         state.history.append({"role": "system", "content": f"UC generated for: {topic}"})
 
         # Run quality check
-        state.quality_result = self.checker.check(
-            uc_text, uc_slug=self._topic_to_slug(topic), iteration=1
-        )
+        state.quality_result = self.checker.check(uc_text, uc_slug=self._topic_to_slug(topic), iteration=1)
 
         return state
 
@@ -164,13 +161,15 @@ class UCDialogEngine:
                 code,
                 f"Bitte ergänze: {criterion.description}",
             )
-            questions.append({
-                "criterion": code,
-                "criterion_name": criterion.name,
-                "question": question_text,
-                "hint": criterion.suggestion,
-                "evidence": criterion.evidence,
-            })
+            questions.append(
+                {
+                    "criterion": code,
+                    "criterion_name": criterion.name,
+                    "question": question_text,
+                    "hint": criterion.suggestion,
+                    "evidence": criterion.evidence,
+                }
+            )
 
         return questions
 
@@ -195,16 +194,15 @@ class UCDialogEngine:
         state.answers.update(answers)
         state.iteration += 1
 
-        if self.llm:
-            refined_text = self._refine_with_llm(state, answers)
-        else:
-            refined_text = self._refine_manually(state, answers)
+        refined_text = self._refine_with_llm(state, answers) if self.llm else self._refine_manually(state, answers)
 
         state.uc_text = refined_text
-        state.history.append({
-            "role": "user",
-            "content": f"Iteration {state.iteration}: {len(answers)} answers provided",
-        })
+        state.history.append(
+            {
+                "role": "user",
+                "content": f"Iteration {state.iteration}: {len(answers)} answers provided",
+            }
+        )
 
         # Re-check quality
         state.quality_result = self.checker.check(
@@ -270,16 +268,10 @@ class UCDialogEngine:
             f"THEN wird eine Fehlermeldung angezeigt\n"
         )
 
-    def _refine_with_llm(
-        self, state: UCDialogState, answers: dict[str, str]
-    ) -> str:
+    def _refine_with_llm(self, state: UCDialogState, answers: dict[str, str]) -> str:
         """Refine UC with LLM using user answers."""
-        answers_text = "\n".join(
-            f"- **{code}**: {answer}" for code, answer in answers.items()
-        )
-        failed_text = "\n".join(
-            f"- {c.name}: {c.suggestion}" for c in state.failed_criteria
-        )
+        answers_text = "\n".join(f"- **{code}**: {answer}" for code, answer in answers.items())
+        failed_text = "\n".join(f"- {c.name}: {c.suggestion}" for c in state.failed_criteria)
 
         prompt = (
             f"Verbessere diesen Use Case basierend auf dem Feedback.\n\n"
@@ -302,9 +294,7 @@ class UCDialogEngine:
         )
         return self._clean_llm_response(response)
 
-    def _refine_manually(
-        self, state: UCDialogState, answers: dict[str, str]
-    ) -> str:
+    def _refine_manually(self, state: UCDialogState, answers: dict[str, str]) -> str:
         """Manually insert answers into UC template sections (no LLM)."""
         text = state.uc_text
 
@@ -379,6 +369,7 @@ class UCDialogEngine:
     def _topic_to_slug(topic: str) -> str:
         """Convert topic to UC slug (e.g. 'SDS hochladen' → 'uc-sds-hochladen')."""
         import re
+
         slug = re.sub(r"[^a-zA-Z0-9äöüÄÖÜß\s-]", "", topic.lower())
         slug = re.sub(r"\s+", "-", slug.strip())
         return f"uc-{slug}"

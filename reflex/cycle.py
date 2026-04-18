@@ -37,7 +37,7 @@ import logging
 import subprocess
 import time
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
@@ -46,7 +46,10 @@ import yaml
 logger = logging.getLogger(__name__)
 
 
-class CyclePhase(str, Enum):
+__all__ = ["CyclePhase", "PhaseStatus", "CycleConfig", "PhaseResult", "CycleResult", "CycleRunner"]
+
+
+class CyclePhase(StrEnum):
     """Development cycle phases."""
 
     DOMAIN_RESEARCH = "Z0_domain_research"
@@ -58,7 +61,7 @@ class CyclePhase(str, Enum):
     COMPLETE = "Z6_complete"
 
 
-class PhaseStatus(str, Enum):
+class PhaseStatus(StrEnum):
     """Phase execution status."""
 
     PENDING = "pending"
@@ -95,9 +98,7 @@ class CycleConfig:
         return cls(
             base_url=dev_cycle.get("base_url", "http://localhost:8000"),
             login_url=dev_cycle.get("login_url", "/accounts/login/"),
-            backend_test_cmd=dev_cycle.get(
-                "backend_test_cmd", "pytest src/ -q --tb=short"
-            ),
+            backend_test_cmd=dev_cycle.get("backend_test_cmd", "pytest src/ -q --tb=short"),
             frontend_test_cmd=dev_cycle.get("frontend_test_cmd", ""),
             lint_cmd=dev_cycle.get("lint_cmd", "ruff check src/"),
             max_fix_iterations=dev_cycle.get("max_fix_iterations", 3),
@@ -134,9 +135,7 @@ class CycleResult:
 
     @property
     def all_passed(self) -> bool:
-        return all(
-            p.passed or p.status == PhaseStatus.SKIPPED for p in self.phases
-        )
+        return all(p.passed or p.status == PhaseStatus.SKIPPED for p in self.phases)
 
     @property
     def failed_phases(self) -> list[PhaseResult]:
@@ -145,13 +144,8 @@ class CycleResult:
     def phase_summary(self) -> str:
         lines = []
         for p in self.phases:
-            icon = {"passed": "✅", "failed": "❌", "skipped": "⏭️"}.get(
-                p.status.value, "⏳"
-            )
-            lines.append(
-                f"  {icon} {p.phase.value}: {p.status.value} "
-                f"({p.duration_seconds:.1f}s)"
-            )
+            icon = {"passed": "✅", "failed": "❌", "skipped": "⏭️"}.get(p.status.value, "⏳")
+            lines.append(f"  {icon} {p.phase.value}: {p.status.value} ({p.duration_seconds:.1f}s)")
         return "\n".join(lines)
 
 
@@ -338,9 +332,7 @@ class CycleRunner:
                     if resp.status_code == expected:
                         routes_ok += 1
                     else:
-                        errors.append(
-                            f"{label} ({url}): expected {expected}, got {resp.status_code}"
-                        )
+                        errors.append(f"{label} ({url}): expected {expected}, got {resp.status_code}")
 
         except Exception as e:
             errors.append(f"Frontend verify error: {e}")
@@ -412,9 +404,7 @@ class CycleRunner:
                 test_name=phase_result.phase.value,
                 error_message=error,
             )
-            classifications.append(
-                f"{result.failure_type.value}: {result.reasoning} → {result.suggested_action}"
-            )
+            classifications.append(f"{result.failure_type.value}: {result.reasoning} → {result.suggested_action}")
 
         return PhaseResult(
             phase=CyclePhase.FIX_CLASSIFY,
@@ -451,9 +441,7 @@ class CycleRunner:
                     "password": "admin123",
                     "csrfmiddlewaretoken": csrf,
                 },
-                headers={
-                    "Referer": f"{self.config.base_url}{self.config.login_url}"
-                },
+                headers={"Referer": f"{self.config.base_url}{self.config.login_url}"},
             )
             return client
         except Exception:
@@ -490,20 +478,20 @@ class CycleRunner:
     @staticmethod
     def print_result(result: CycleResult) -> None:
         """Print human-readable cycle result."""
-        print(f"\n{'='*70}")
-        print(f"  REFLEX Development Cycle Report — {result.uc_slug}")
-        print(f"{'='*70}")
-        print(f"  Iteration:  {result.iteration}")
-        print(f"  Duration:   {result.total_duration_seconds:.1f}s")
-        print(f"  Status:     {result.final_status.value}")
-        print(f"{'='*70}\n")
-        print(result.phase_summary())
+        logger.info(f"\n{'=' * 70}")
+        logger.info(f"  REFLEX Development Cycle Report — {result.uc_slug}")
+        logger.info(f"{'=' * 70}")
+        logger.info(f"  Iteration:  {result.iteration}")
+        logger.info(f"  Duration:   {result.total_duration_seconds:.1f}s")
+        logger.info(f"  Status:     {result.final_status.value}")
+        logger.info(f"{'=' * 70}\n")
+        logger.info(result.phase_summary())
 
         if result.failed_phases:
-            print(f"\n  ❌ Failed Phases:")
+            logger.info("\n  ❌ Failed Phases:")
             for p in result.failed_phases:
-                print(f"    {p.phase.value}:")
+                logger.info(f"    {p.phase.value}:")
                 for e in p.errors[:3]:
-                    print(f"      - {e}")
+                    logger.info(f"      - {e}")
 
-        print()
+        logger.info()

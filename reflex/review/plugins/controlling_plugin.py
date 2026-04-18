@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 import logging
 import os
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
 
 import yaml
@@ -106,7 +106,7 @@ class ControllingPlugin:
                             ),
                         )
                     ]
-        except Exception:
+        except Exception:  # DB may be unavailable
             pass
         return []
 
@@ -155,7 +155,7 @@ class ControllingPlugin:
                         )
                 except (ValueError, TypeError):
                     pass
-        except Exception:
+        except Exception:  # DB may be unavailable
             pass
         return findings
 
@@ -204,12 +204,11 @@ class ControllingPlugin:
 
             # Check: any metrics at all for this repo?
             cur = conn.execute(
-                "SELECT COUNT(*), MAX(run_ts), MIN(run_ts) "
-                "FROM reflex_metrics WHERE repo = %s",
+                "SELECT COUNT(*), MAX(run_ts), MIN(run_ts) FROM reflex_metrics WHERE repo = %s",
                 (repo,),
             )
             row = cur.fetchone()
-            total_runs, last_run, first_run = row[0], row[1], row[2]
+            total_runs, last_run, _first_run = row[0], row[1], row[2]
 
             findings = []
 
@@ -235,8 +234,7 @@ class ControllingPlugin:
                             rule_id="controlling.metrics_stale",
                             severity=ReviewSeverity.WARN,
                             message=(
-                                f"{repo}: Last metrics {days_since} days ago — "
-                                f"reviews should run at least weekly"
+                                f"{repo}: Last metrics {days_since} days ago — reviews should run at least weekly"
                             ),
                         )
                     )
@@ -310,7 +308,7 @@ class ControllingPlugin:
                     severity=ReviewSeverity.INFO,
                     message=(
                         f"REFLEX coverage: {covered}/{total} repos "
-                        f"({100*covered//total}%). Missing: {', '.join(uncovered[:5])}"
+                        f"({100 * covered // total}%). Missing: {', '.join(uncovered[:5])}"
                         f"{'...' if len(uncovered) > 5 else ''}"
                     ),
                 )

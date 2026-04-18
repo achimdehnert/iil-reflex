@@ -14,10 +14,25 @@ Enriches with local docker-compose.prod.yml for DB, volumes, healthcheck info.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from pathlib import Path
 
 import yaml
+
+logger = logging.getLogger(__name__)
+
+
+__all__ = [
+    "get_service_info",
+    "get_all_services",
+    "format_info_card",
+    "format_all_table",
+    "get_live_status",
+    "format_live_card",
+    "format_all_live_table",
+    "cmd_infra",
+]
 
 
 def _find_ports_yaml(github_dir: Path) -> Path | None:
@@ -57,7 +72,7 @@ def _extract_db_info(compose_path: Path) -> dict:
     # Find DB container name
     # Look for -db or _db service
     lines = content.split("\n")
-    for i, line in enumerate(lines):
+    for _i, line in enumerate(lines):
         if re.search(r"container_name:.*(_db|[-_]db)", line):
             db_info["db_container"] = line.split(":")[-1].strip()
 
@@ -216,7 +231,7 @@ def format_info_card(info: dict) -> str:
 
     # Redis
     if info.get("redis"):
-        lines.append(f"  Redis:      yes")
+        lines.append("  Redis:      yes")
 
     # Health
     if info.get("healthcheck"):
@@ -253,7 +268,7 @@ def format_all_table(services: list[dict]) -> str:
         drift = " ⚠️" if svc.get("compose_drift") else ""
         lines.append(f"  {svc['name']:<20} {port:<6} {container:<25} {domain}{drift}")
 
-    lines.append(f"\n  ⚠️  = compose_drift (port mismatch)")
+    lines.append("\n  ⚠️  = compose_drift (port mismatch)")
     lines.append("")
     return "\n".join(lines)
 
@@ -264,9 +279,10 @@ def _run_ssh(ssh_target: str, command: str, timeout: int = 10) -> str | None:
 
     try:
         result = subprocess.run(
-            ["ssh", "-o", "ConnectTimeout=5", "-o", "StrictHostKeyChecking=no",
-             ssh_target, command],
-            capture_output=True, text=True, timeout=timeout,
+            ["ssh", "-o", "ConnectTimeout=5", "-o", "StrictHostKeyChecking=no", ssh_target, command],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
         )
         if result.returncode == 0:
             return result.stdout.strip()
@@ -285,10 +301,7 @@ def get_live_status(info: dict) -> dict:
     live = {}
 
     # Container status
-    status_out = _run_ssh(
-        ssh,
-        f"docker ps --filter 'name=^{container}$' --format '{{{{.Status}}}}' 2>/dev/null"
-    )
+    status_out = _run_ssh(ssh, f"docker ps --filter 'name=^{container}$' --format '{{{{.Status}}}}' 2>/dev/null")
     if status_out:
         live["container_status"] = status_out
     else:
@@ -298,7 +311,7 @@ def get_live_status(info: dict) -> dict:
     stats_out = _run_ssh(
         ssh,
         f"docker stats {container} --no-stream --format "
-        f"'{{{{.CPUPerc}}}} {{{{.MemUsage}}}} {{{{.MemPerc}}}}' 2>/dev/null"
+        f"'{{{{.CPUPerc}}}} {{{{.MemUsage}}}} {{{{.MemPerc}}}}' 2>/dev/null",
     )
     if stats_out:
         parts = stats_out.split()
@@ -310,10 +323,7 @@ def get_live_status(info: dict) -> dict:
     # DB container status (if exists)
     db_container = info.get("db_container")
     if db_container:
-        db_status = _run_ssh(
-            ssh,
-            f"docker ps --filter 'name=^{db_container}$' --format '{{{{.Status}}}}' 2>/dev/null"
-        )
+        db_status = _run_ssh(ssh, f"docker ps --filter 'name=^{db_container}$' --format '{{{{.Status}}}}' 2>/dev/null")
         live["db_status"] = db_status or "NOT RUNNING"
 
     # Disk usage
@@ -327,15 +337,14 @@ def get_live_status(info: dict) -> dict:
         health_out = _run_ssh(
             ssh,
             f"curl -s -o /dev/null -w '%{{http_code}}' --max-time 3 http://127.0.0.1:{port}/health/ 2>/dev/null"
-            f" || curl -s -o /dev/null -w '%{{http_code}}' --max-time 3 http://127.0.0.1:{port}/ 2>/dev/null"
+            f" || curl -s -o /dev/null -w '%{{http_code}}' --max-time 3 http://127.0.0.1:{port}/ 2>/dev/null",
         )
         if health_out:
             live["http_status"] = health_out
 
     # Recent logs (last error)
     logs_out = _run_ssh(
-        ssh,
-        f"docker logs {container} --tail 5 --since 1h 2>&1 | grep -i 'error\\|exception\\|fatal' | tail -1"
+        ssh, f"docker logs {container} --tail 5 --since 1h 2>&1 | grep -i 'error\\|exception\\|fatal' | tail -1"
     )
     if logs_out:
         live["last_error"] = logs_out[:120]
@@ -349,7 +358,7 @@ def format_live_card(info: dict, live: dict) -> str:
 
     lines = [card.rstrip()]
     lines.append(f"  {'─' * 56}")
-    lines.append(f"  🔴 LIVE STATUS (via SSH)")
+    lines.append("  🔴 LIVE STATUS (via SSH)")
     lines.append(f"  {'─' * 56}")
 
     # Container
@@ -447,17 +456,17 @@ def cmd_infra(args) -> int:
     if args.all:
         services = get_all_services(github_dir)
         if not services:
-            print("ERROR: Could not load ports.yaml", file=__import__("sys").stderr)
+            logger.error("ERROR: Could not load ports.yaml", file=__import__("sys").stderr)
             return 1
         if args.json:
             if live_mode:
                 for svc in services:
                     svc["live"] = get_live_status(svc)
-            print(json.dumps(services, indent=2, ensure_ascii=False))
+            logger.info(json.dumps(services, indent=2, ensure_ascii=False))
         elif live_mode:
-            print(format_all_live_table(services, github_dir))
+            logger.info(format_all_live_table(services, github_dir))
         else:
-            print(format_all_table(services))
+            logger.info(format_all_table(services))
         return 0
 
     # Single repo lookup
@@ -469,27 +478,29 @@ def cmd_infra(args) -> int:
         try:
             toplevel = subprocess.run(
                 ["git", "rev-parse", "--show-toplevel"],
-                capture_output=True, text=True, check=True,
+                capture_output=True,
+                text=True,
+                check=True,
             ).stdout.strip()
             repo = Path(toplevel).name
         except Exception:
-            print("ERROR: No repo specified and not in a git repo", file=__import__("sys").stderr)
+            logger.error("ERROR: No repo specified and not in a git repo", file=__import__("sys").stderr)
             return 1
 
     info = get_service_info(repo, github_dir)
     if not info:
-        print(f"ERROR: '{repo}' not found in ports.yaml", file=__import__("sys").stderr)
+        logger.error(f"ERROR: '{repo}' not found in ports.yaml", file=__import__("sys").stderr)
         return 1
 
     if args.json:
         data = info
         if live_mode:
             data["live"] = get_live_status(info)
-        print(json.dumps(data, indent=2, ensure_ascii=False))
+        logger.info(json.dumps(data, indent=2, ensure_ascii=False))
     elif live_mode:
         live = get_live_status(info)
-        print(format_live_card(info, live))
+        logger.info(format_live_card(info, live))
     else:
-        print(format_info_card(info))
+        logger.info(format_info_card(info))
 
     return 0

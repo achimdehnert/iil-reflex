@@ -36,6 +36,9 @@ from reflex.types import ClassifyResult, FailureType
 logger = logging.getLogger(__name__)
 
 
+__all__ = ["FailureClassifier"]
+
+
 class FailureClassifier:
     """Deterministic + LLM-augmented failure classification."""
 
@@ -90,9 +93,7 @@ class FailureClassifier:
         result = self._rule_based_classify(test_name, error_message, uc_text)
 
         if result.failure_type == FailureType.UNKNOWN and self.llm:
-            result = self._llm_classify(
-                test_name, error_message, uc_text, wireframe_html
-            )
+            result = self._llm_classify(test_name, error_message, uc_text, wireframe_html)
 
         return result
 

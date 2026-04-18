@@ -19,6 +19,8 @@ from typing import Any
 
 import yaml
 
+__all__ = ["Viewport", "HTMXRules", "QualityConfig", "ReflexConfig"]
+
 
 @dataclass(frozen=True)
 class Viewport:
@@ -34,9 +36,7 @@ class HTMXRules:
     """HTMX validation rules (U-1, ADR-048)."""
 
     banned: list[str] = field(default_factory=lambda: ["hx-boost"])
-    required_on_forms: list[str] = field(
-        default_factory=lambda: ["hx-indicator", "hx-disabled-elt"]
-    )
+    required_on_forms: list[str] = field(default_factory=lambda: ["hx-indicator", "hx-disabled-elt"])
 
 
 @dataclass(frozen=True)
@@ -97,23 +97,16 @@ class ReflexConfig:
             max_uc_steps=quality_raw.get("max_uc_steps", 7),
             require_error_cases=quality_raw.get("require_error_cases", True),
             require_specific_actor=quality_raw.get("require_specific_actor", True),
-            forbid_implementation_details=quality_raw.get(
-                "forbid_implementation_details", True
-            ),
+            forbid_implementation_details=quality_raw.get("forbid_implementation_details", True),
             forbid_soft_language=quality_raw.get("forbid_soft_language", True),
         )
 
-        viewports = [
-            Viewport(v["name"], v["width"], v["height"])
-            for v in raw.get("viewports", [])
-        ]
+        viewports = [Viewport(v["name"], v["width"], v["height"]) for v in raw.get("viewports", [])]
 
         htmx_raw = raw.get("htmx_patterns", {})
         htmx = HTMXRules(
             banned=htmx_raw.get("banned", ["hx-boost"]),
-            required_on_forms=htmx_raw.get(
-                "required_on_forms", ["hx-indicator", "hx-disabled-elt"]
-            ),
+            required_on_forms=htmx_raw.get("required_on_forms", ["hx-indicator", "hx-disabled-elt"]),
         )
 
         return cls(
@@ -121,7 +114,8 @@ class ReflexConfig:
             vertical=raw.get("vertical", "general"),
             domain_keywords=raw.get("domain_keywords", []),
             quality=quality,
-            viewports=viewports or [
+            viewports=viewports
+            or [
                 Viewport("mobile", 375, 812),
                 Viewport("tablet", 768, 1024),
                 Viewport("desktop", 1280, 800),

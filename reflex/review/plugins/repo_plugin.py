@@ -1,8 +1,11 @@
 """
-REFLEX Review Plugin: repo — Repository completeness checks (ADR-165).
+REFLEX Review Plugin: repo — Repository structure checks (ADR-165).
 
-Checks for essential files, configuration, and structure that every
-platform repo should have.
+Checks for essential files and directory structure that every
+platform repo should have. Pure existence checks only.
+
+Compose content checks → compose_plugin (Single Responsibility).
+Security checks (.gitignore secrets) → security_plugin.
 """
 
 from __future__ import annotations
@@ -59,8 +62,7 @@ class RepoPlugin:
                 findings.append(
                     Finding(
                         rule_id="repo.missing_{}".format(
-                            Path(file_rel).stem.lower()
-                            .replace(".", "_").replace("-", "_")
+                            Path(file_rel).stem.lower().replace(".", "_").replace("-", "_")
                         ),
                         severity=ReviewSeverity(sev),
                         message=f"Missing required file: {file_rel}",
@@ -77,10 +79,7 @@ class RepoPlugin:
             if not target.exists():
                 findings.append(
                     Finding(
-                        rule_id="repo.missing_{}".format(
-                            file_rel.rstrip("/")
-                            .replace("/", "_").replace(".", "_")
-                        ),
+                        rule_id="repo.missing_{}".format(file_rel.rstrip("/").replace("/", "_").replace(".", "_")),
                         severity=ReviewSeverity(sev),
                         message=f"Missing recommended path: {file_rel}",
                         adr_ref=adr,
@@ -89,9 +88,7 @@ class RepoPlugin:
                 )
 
         # Dockerfile must exist in one of the known locations
-        has_dockerfile = any(
-            (repo_path / loc).exists() for loc in self.DOCKERFILE_LOCATIONS
-        )
+        has_dockerfile = any((repo_path / loc).exists() for loc in self.DOCKERFILE_LOCATIONS)
         if not has_dockerfile:
             findings.append(
                 Finding(
@@ -101,59 +98,6 @@ class RepoPlugin:
                     adr_ref="ADR-021 §2.3",
                 )
             )
-
-        # Check docker-compose.prod.yml has mem_limit
-        compose_file = repo_path / "docker-compose.prod.yml"
-        if compose_file.exists():
-            compose_text = compose_file.read_text(encoding="utf-8")
-            if "mem_limit" not in compose_text and "memory" not in compose_text:
-                findings.append(
-                    Finding(
-                        rule_id="repo.no_memory_limit",
-                        severity=ReviewSeverity.WARN,
-                        message="docker-compose.prod.yml has no memory limits",
-                        adr_ref="ADR-021 §2.11",
-                        file_path="docker-compose.prod.yml",
-                        auto_fixable=True,
-                        fix_complexity=FixComplexity.SIMPLE,
-                        fix_hint="Add deploy.resources.limits.memory under each service",
-                    )
-                )
-
-            # Check env_file pattern
-            if "environment:" in compose_text and "${" in compose_text:
-                findings.append(
-                    Finding(
-                        rule_id="repo.env_interpolation",
-                        severity=ReviewSeverity.BLOCK,
-                        message=(
-                            "docker-compose.prod.yml uses ${VAR} interpolation"
-                            " — use env_file instead"
-                        ),
-                        adr_ref="ADR-021 §2.11",
-                        file_path="docker-compose.prod.yml",
-                        auto_fixable=False,
-                        fix_complexity=FixComplexity.MODERATE,
-                    )
-                )
-
-        # Check .gitignore has .env.prod
-        gitignore = repo_path / ".gitignore"
-        if gitignore.exists():
-            gi_text = gitignore.read_text(encoding="utf-8")
-            if ".env.prod" not in gi_text:
-                findings.append(
-                    Finding(
-                        rule_id="repo.env_not_gitignored",
-                        severity=ReviewSeverity.BLOCK,
-                        message=".env.prod not in .gitignore — secrets leak risk",
-                        adr_ref="ADR-045",
-                        file_path=".gitignore",
-                        auto_fixable=True,
-                        fix_complexity=FixComplexity.TRIVIAL,
-                        fix_hint="echo '.env.prod' >> .gitignore",
-                    )
-                )
 
         return findings
 

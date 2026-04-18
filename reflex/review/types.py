@@ -81,7 +81,6 @@ class ReviewResult:
     timestamp: str = field(
         default_factory=lambda: datetime.now(UTC).isoformat()
     )
-    metadata: dict = field(default_factory=dict)
 
     @property
     def findings_block(self) -> list[Finding]:
@@ -132,7 +131,6 @@ class ReviewResult:
             "duration_s": self.duration_s,
             "triggered_by": self.triggered_by,
             "timestamp": self.timestamp,
-            **({"metadata": self.metadata} if self.metadata else {}),
         }
 
     def to_json(self, indent: int = 2) -> str:

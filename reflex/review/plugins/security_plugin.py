@@ -36,8 +36,15 @@ class SecurityPlugin:
 
     # Files to skip when scanning for secrets
     SKIP_PATTERNS = [
-        "*.pyc", "__pycache__", ".git", "node_modules", ".venv",
-        "*.whl", "*.egg-info", "migrations", "staticfiles",
+        "*.pyc",
+        "__pycache__",
+        ".git",
+        "node_modules",
+        ".venv",
+        "*.whl",
+        "*.egg-info",
+        "migrations",
+        "staticfiles",
         ".windsurf",
     ]
 
@@ -46,8 +53,17 @@ class SecurityPlugin:
 
     # Extensions to scan
     SCAN_EXTENSIONS = {
-        ".py", ".yml", ".yaml", ".toml", ".cfg", ".ini", ".conf",
-        ".sh", ".bash", ".env.example", ".md",
+        ".py",
+        ".yml",
+        ".yaml",
+        ".toml",
+        ".cfg",
+        ".ini",
+        ".conf",
+        ".sh",
+        ".bash",
+        ".env.example",
+        ".md",
     }
 
     def check(self, repo: str, context: dict) -> list[Finding]:
@@ -82,10 +98,7 @@ class SecurityPlugin:
 
     def _check_dockerignore(self, repo_path: Path) -> list[Finding]:
         """Missing .dockerignore can leak .env, .git, secrets into image."""
-        has_dockerfile = any(
-            (repo_path / p).exists()
-            for p in ["Dockerfile", "docker/app/Dockerfile"]
-        )
+        has_dockerfile = any((repo_path / p).exists() for p in ["Dockerfile", "docker/app/Dockerfile"])
         if not has_dockerfile:
             return []
 
@@ -209,22 +222,20 @@ class SecurityPlugin:
                         fix_complexity=FixComplexity.TRIVIAL,
                     )
                 )
-            elif re.match(r"^\d{4,5}:\d{4,5}$", stripped):
+            elif re.match(r"^\d{4,5}:\d{4,5}$", stripped) and not line.strip().startswith("#"):
                 # Bare port binding like "8080:8000" — implicitly 0.0.0.0
-                # Skip if in a comment
-                if not line.strip().startswith("#"):
-                    findings.append(
-                        Finding(
-                            rule_id="security.compose_port_implicit_bind",
-                            severity=ReviewSeverity.WARN,
-                            message=f"docker-compose.prod.yml:{i}: Port '{stripped}' implicitly binds to all interfaces",
-                            adr_ref="ADR-164 §5.1",
-                            fix_hint=f"Change to 127.0.0.1:{stripped}",
-                            file_path="docker-compose.prod.yml",
-                            auto_fixable=True,
-                            fix_complexity=FixComplexity.TRIVIAL,
-                        )
+                findings.append(
+                    Finding(
+                        rule_id="security.compose_port_implicit_bind",
+                        severity=ReviewSeverity.WARN,
+                        message=(f"docker-compose.prod.yml:{i}: Port '{stripped}' implicitly binds to all interfaces"),
+                        adr_ref="ADR-164 §5.1",
+                        fix_hint=f"Change to 127.0.0.1:{stripped}",
+                        file_path="docker-compose.prod.yml",
+                        auto_fixable=True,
+                        fix_complexity=FixComplexity.TRIVIAL,
                     )
+                )
         return findings
 
     def _check_debug_settings(self, repo_path: Path) -> list[Finding]:

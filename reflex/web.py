@@ -36,6 +36,9 @@ from reflex.types import SDSData, WebPage
 
 logger = logging.getLogger(__name__)
 
+
+__all__ = ["HttpxWebProvider", "PubChemAdapter", "GESTISAdapter", "PDFDocumentProvider"]
+
 _DEFAULT_UA = "Mozilla/5.0 (REFLEX/0.2; SDS Research Bot; +https://github.com/achimdehnert/iil-reflex)"
 _DEFAULT_TIMEOUT = 30
 
@@ -44,11 +47,11 @@ def _require_httpx():
     """Lazy import httpx — only needed at runtime, not at import time."""
     try:
         import httpx
+
         return httpx
     except ImportError as exc:
         raise ImportError(
-            "httpx is required for web scraping. Install with: "
-            "pip install iil-reflex[web]  or  pip install httpx"
+            "httpx is required for web scraping. Install with: pip install iil-reflex[web]  or  pip install httpx"
         ) from exc
 
 
@@ -56,6 +59,7 @@ def _require_bs4():
     """Lazy import BeautifulSoup."""
     try:
         from bs4 import BeautifulSoup
+
         return BeautifulSoup
     except ImportError as exc:
         raise ImportError(
@@ -109,6 +113,7 @@ class HttpxWebProvider:
 
         if self.allowed_domains:
             from urllib.parse import urlparse
+
             domain = urlparse(url).netloc
             if not any(d in domain for d in self.allowed_domains):
                 logger.warning("Domain %s not in allowed list, skipping", domain)
@@ -195,12 +200,14 @@ class HttpxWebProvider:
                         snippet = snippet_tag.get_text(strip=True)
 
                 if href and href.startswith("http"):
-                    results.append(WebPage(
-                        url=href,
-                        title=title,
-                        text=snippet,
-                        scraped_at=datetime.now(UTC).isoformat(),
-                    ))
+                    results.append(
+                        WebPage(
+                            url=href,
+                            title=title,
+                            text=snippet,
+                            scraped_at=datetime.now(UTC).isoformat(),
+                        )
+                    )
 
             return results[:limit]
 
@@ -215,10 +222,9 @@ class HttpxWebProvider:
             import io
 
             import pdfplumber
+
             with pdfplumber.open(io.BytesIO(content)) as pdf:
-                return "\n".join(
-                    page.extract_text() or "" for page in pdf.pages
-                )
+                return "\n".join(page.extract_text() or "" for page in pdf.pages)
         except ImportError:
             logger.warning("pdfplumber not installed — cannot extract PDF text")
             return "[PDF content — install pdfplumber to extract text]"
@@ -303,19 +309,13 @@ class PubChemAdapter:
 
     def _get_properties(self, cid: int) -> dict[str, Any]:
         """Get computed properties for a CID."""
-        url = (
-            f"{self.BASE_URL}/compound/cid/{cid}/"
-            "property/IUPACName,MolecularFormula,"
-            "MolecularWeight/JSON"
-        )
+        url = f"{self.BASE_URL}/compound/cid/{cid}/property/IUPACName,MolecularFormula,MolecularWeight/JSON"
         page = self.web.fetch(url)
         if page.status_code != 200:
             return {}
         try:
             data = json.loads(page.text)
-            return data.get(
-                "PropertyTable", {}
-            ).get("Properties", [{}])[0]
+            return data.get("PropertyTable", {}).get("Properties", [{}])[0]
         except (json.JSONDecodeError, IndexError):
             return {}
 
@@ -327,11 +327,7 @@ class PubChemAdapter:
             return ""
         try:
             data = json.loads(page.text)
-            synonyms = (
-                data.get("InformationList", {})
-                .get("Information", [{}])[0]
-                .get("Synonym", [])
-            )
+            synonyms = data.get("InformationList", {}).get("Information", [{}])[0].get("Synonym", [])
             cas_pat = re.compile(r"^\d{2,7}-\d{2}-\d$")
             for s in synonyms:
                 if cas_pat.match(s):
@@ -342,11 +338,7 @@ class PubChemAdapter:
 
     def _get_ghs_classification(self, cid: int) -> dict[str, Any]:
         """Get GHS hazard data from PubChem PUG View."""
-        url = (
-            "https://pubchem.ncbi.nlm.nih.gov/rest/pug_view"
-            f"/data/compound/{cid}/JSON"
-            "?heading=GHS+Classification"
-        )
+        url = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug_view/data/compound/{cid}/JSON?heading=GHS+Classification"
         page = self.web.fetch(url)
         if page.status_code != 200:
             return {}
@@ -373,41 +365,24 @@ class PubChemAdapter:
 
             for info in all_info:
                 name = info.get("Name", "")
-                strings = [
-                    item.get("String", "")
-                    for item in info.get("Value", {}).get(
-                        "StringWithMarkup", []
-                    )
-                ]
+                strings = [item.get("String", "") for item in info.get("Value", {}).get("StringWithMarkup", [])]
                 full = " ".join(strings)
 
                 if "Hazard Statements" in name:
-                    result["h_statements"].extend(
-                        re.findall(r"H\d{3}", full)
-                    )
+                    result["h_statements"].extend(re.findall(r"H\d{3}", full))
                 elif "Precautionary" in name:
-                    result["p_statements"].extend(
-                        re.findall(r"P\d{3}", full)
-                    )
+                    result["p_statements"].extend(re.findall(r"P\d{3}", full))
                 elif name == "Signal":
                     for s in strings:
                         s = s.strip()
                         if s and s != " ":
                             result["signal_word"] = s
                 elif "Pictogram" in name:
-                    result["pictograms"].extend(
-                        re.findall(r"GHS\d{2}", full)
-                    )
+                    result["pictograms"].extend(re.findall(r"GHS\d{2}", full))
 
-            result["h_statements"] = sorted(
-                set(result["h_statements"])
-            )
-            result["p_statements"] = sorted(
-                set(result["p_statements"])
-            )
-            result["pictograms"] = sorted(
-                set(result["pictograms"])
-            )
+            result["h_statements"] = sorted(set(result["h_statements"]))
+            result["p_statements"] = sorted(set(result["p_statements"]))
+            result["pictograms"] = sorted(set(result["pictograms"]))
         except (json.JSONDecodeError, KeyError):
             pass
         return result
@@ -527,10 +502,9 @@ class PDFDocumentProvider:
         """Extract text from a local PDF file."""
         try:
             import pdfplumber
+
             with pdfplumber.open(path) as pdf:
-                return "\n".join(
-                    page.extract_text() or "" for page in pdf.pages
-                )
+                return "\n".join(page.extract_text() or "" for page in pdf.pages)
         except ImportError as exc:
             raise ImportError(
                 "pdfplumber is required for PDF reading. Install with: "

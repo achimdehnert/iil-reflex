@@ -40,12 +40,13 @@ def cmd_check(args: argparse.Namespace) -> int:
     uc_text = uc_path.read_text(encoding="utf-8")
     result = checker.check(uc_text, uc_slug=uc_path.stem)
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  REFLEX UC Quality Check: {uc_path.name}")
-    print(f"{'='*60}")
-    print(f"  Score: {result.score_percent}% ({sum(1 for c in result.criteria if c.passed)}/{len(result.criteria)} criteria)")
+    print(f"{'=' * 60}")
+    passed = sum(1 for c in result.criteria if c.passed)
+    print(f"  Score: {result.score_percent}% ({passed}/{len(result.criteria)} criteria)")
     print(f"  Passed: {'YES' if result.passed else 'NO'}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     for c in result.criteria:
         icon = "✅" if c.passed else "❌"
@@ -78,6 +79,7 @@ def cmd_research(args: argparse.Namespace) -> int:
     web = None
     if args.web:
         from reflex.web import HttpxWebProvider
+
         web = HttpxWebProvider()
 
     agent = DomainAgent(config=config, llm=llm, web=web)
@@ -88,7 +90,7 @@ def cmd_research(args: argparse.Namespace) -> int:
     print(f"  Vertical: {config.vertical}")
     print(f"  Backend:  {args.backend} ({model_name})")
     print(f"  Web:      {'enabled' if args.web else 'disabled'}")
-    print(f"  {'─'*50}")
+    print(f"  {'─' * 50}")
 
     result = agent.research(topic)
 
@@ -144,9 +146,9 @@ def cmd_classify(args: argparse.Namespace) -> int:
         uc_text=uc_text,
     )
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("  REFLEX Failure Classification")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"  Test:       {args.test_name}")
     print(f"  Type:       {result.failure_type.value}")
     print(f"  Confidence: {result.confidence:.0%}")
@@ -166,15 +168,15 @@ def cmd_scrape(args: argparse.Namespace) -> int:
     web = HttpxWebProvider()
     page = web.fetch(args.url)
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("  REFLEX Web Scrape")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"  URL:     {page.url}")
     print(f"  Title:   {page.title}")
     print(f"  Status:  {page.status_code}")
     print(f"  Type:    {page.content_type}")
     print(f"  Length:  {len(page.text)} chars")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     if args.json:
         output = {
@@ -205,9 +207,9 @@ def cmd_sds(args: argparse.Namespace) -> int:
     web = HttpxWebProvider()
     results: list[dict] = []
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  REFLEX SDS Lookup: {substance}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     if args.source in ("pubchem", "all"):
         print("\n  Querying PubChem...")
@@ -240,7 +242,6 @@ def cmd_sds(args: argparse.Namespace) -> int:
 
     print()
     return 0
-
 
 
 def cmd_review(args: argparse.Namespace) -> int:
@@ -309,15 +310,9 @@ def cmd_review(args: argparse.Namespace) -> int:
 
     sep = "-" * 60
     print(f"\n{sep}")
-    total_msg = (
-        f"  Total: {total_findings} findings"
-        f" ({total_block} block, {total_warn} warn,"
-        f" {total_info} info)"
-    )
+    total_msg = f"  Total: {total_findings} findings ({total_block} block, {total_warn} warn, {total_info} info)"
     print(total_msg)
-    auto_count = sum(
-        len(r.findings_auto_fixable) for r in results
-    )
+    auto_count = sum(len(r.findings_auto_fixable) for r in results)
     if auto_count:
         print(f"  Auto-fixable: {auto_count}")
     print()
@@ -340,7 +335,6 @@ def cmd_review(args: argparse.Namespace) -> int:
     return 0
 
 
-
 def cmd_init(args: argparse.Namespace) -> int:
     """Generate reflex.yaml from scaffold template (ADR-163)."""
     from reflex.scaffold import ScaffoldOptions, scaffold, scaffold_force
@@ -354,10 +348,7 @@ def cmd_init(args: argparse.Namespace) -> int:
     )
 
     try:
-        if args.force:
-            path = scaffold_force(options)
-        else:
-            path = scaffold(options)
+        path = scaffold_force(options) if args.force else scaffold(options)
     except FileExistsError as e:
         print(f"ERROR: {e}", file=sys.stderr)
         return 1
@@ -395,15 +386,14 @@ def cmd_platform(args: argparse.Namespace) -> int:
     return 0 if report.healthy_hubs == report.total_hubs else 1
 
 
-
-
 def cmd_dashboard(args: argparse.Namespace) -> int:
     """Start local development dashboard (ADR-163)."""
     from reflex.dashboard import run_dashboard
 
-    github_dir = args.github_dir or str(Path.home() / 'github')
+    github_dir = args.github_dir or str(Path.home() / "github")
     run_dashboard(port=args.dashboard_port, github_dir=github_dir)
     return 0
+
 
 def cmd_info(args: argparse.Namespace) -> int:
     """Show REFLEX config info."""
@@ -415,9 +405,9 @@ def cmd_info(args: argparse.Namespace) -> int:
 
     config = ReflexConfig.from_yaml(args.config)
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  REFLEX Config: {args.config}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"  Hub:       {config.hub_name}")
     print(f"  Vertical:  {config.vertical}")
     print(f"  Keywords:  {', '.join(config.domain_keywords[:8])}")
@@ -458,11 +448,15 @@ def main() -> int:
     p_research = sub.add_parser("research", help="Domain research via LLM")
     p_research.add_argument("topic", nargs="+", help="Research topic")
     p_research.add_argument(
-        "--backend", "-b", default="litellm",
+        "--backend",
+        "-b",
+        default="litellm",
         help="LLM backend: auto (aifw if Django, else litellm), aifw, litellm",
     )
     p_research.add_argument(
-        "--model", "-m", default="groq/llama-3.3-70b-versatile",
+        "--model",
+        "-m",
+        default="groq/llama-3.3-70b-versatile",
         help="litellm model string (e.g. groq/llama-3.3-70b-versatile, openai/gpt-4o-mini)",
     )
     p_research.add_argument("--json", "-j", action="store_true", help="Output JSON")
@@ -477,7 +471,9 @@ def main() -> int:
     p_sds = sub.add_parser("sds", help="Look up SDS data for a substance")
     p_sds.add_argument("substance", nargs="+", help="Substance name or CAS number")
     p_sds.add_argument(
-        "--source", "-s", default="pubchem",
+        "--source",
+        "-s",
+        default="pubchem",
         choices=["pubchem", "gestis", "all"],
         help="Data source",
     )
@@ -493,7 +489,10 @@ def main() -> int:
     p_init = sub.add_parser("init", help="Generate reflex.yaml scaffold (ADR-163)")
     p_init.add_argument("--hub", required=True, help="Hub name (e.g. risk-hub)")
     p_init.add_argument(
-        "--tier", type=int, default=2, choices=[1, 2],
+        "--tier",
+        type=int,
+        default=2,
+        choices=[1, 2],
         help="Tier level: 1 (full) or 2 (light)",
     )
     p_init.add_argument("--vertical", default="general", help="Domain vertical")
@@ -506,7 +505,6 @@ def main() -> int:
     p_platform.add_argument("--json", "-j", action="store_true", help="Output JSON")
     p_platform.add_argument("--report", "-r", help="Write Markdown report to file")
 
-
     # dashboard (ADR-163)
     p_dash = sub.add_parser("dashboard", help="Local dev dashboard — app tiles + docker control")
     p_dash.add_argument("--dashboard-port", type=int, default=9000, help="Dashboard port (default: 9000)")
@@ -514,44 +512,55 @@ def main() -> int:
 
     # review (ADR-165)
     p_review = sub.add_parser(
-        "review", help="Run infrastructure review plugins (ADR-165)",
+        "review",
+        help="Run infrastructure review plugins (ADR-165)",
     )
     p_review.add_argument(
         "review_type",
         help="Plugin: repo, compose, adr, port, all, list",
     )
     p_review.add_argument(
-        "repo", nargs="?", default=".",
+        "repo",
+        nargs="?",
+        default=".",
         help="Repo name (default: current dir)",
     )
     p_review.add_argument(
-        "--json", "-j", action="store_true", help="Output JSON",
+        "--json",
+        "-j",
+        action="store_true",
+        help="Output JSON",
     )
     p_review.add_argument(
-        "--fail-on", choices=["block", "warn"],
+        "--fail-on",
+        choices=["block", "warn"],
         help="Exit 1 if findings of this severity exist",
     )
     p_review.add_argument(
-        "--include-baseline", action="store_true",
+        "--include-baseline",
+        action="store_true",
         help="Include baseline findings in output",
     )
     p_review.add_argument(
-        "--init-baseline", action="store_true",
+        "--init-baseline",
+        action="store_true",
         help="Save current findings as baseline",
     )
     p_review.add_argument(
-        "--github-dir", default="",
+        "--github-dir",
+        default="",
         help="Path to github repos directory",
     )
     p_review.add_argument(
-        "--emit-metrics", action="store_true",
+        "--emit-metrics",
+        action="store_true",
         help="Write results to PostgreSQL metrics DB",
     )
     p_review.add_argument(
-        "--outline-sync", action="store_true",
+        "--outline-sync",
+        action="store_true",
         help="Sync UC overview to Outline wiki",
     )
-
 
     # infra (infrastructure lookup)
     p_infra = sub.add_parser("infra", help="Infrastructure lookup — server, port, DB, domain")

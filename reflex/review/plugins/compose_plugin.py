@@ -3,15 +3,17 @@ REFLEX Review Plugin: compose — Docker Compose audit (ADR-165, ADR-021).
 
 Validates docker-compose.prod.yml against platform conventions:
 - HEALTHCHECK not in Dockerfile (only in compose)
-- Non-root user
-- Logging config
 - restart policy
-- env_file pattern
+- Logging config (json-file with max-size)
+- env_file usage (not environment:${VAR})
+- Memory limits
+- Healthcheck in compose
+
+Port binding checks → security_plugin (Single Responsibility).
 """
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 from reflex.review.types import (
@@ -61,10 +63,7 @@ class ComposePlugin:
                             file_path=dockerfile_path,
                             auto_fixable=True,
                             fix_complexity=FixComplexity.SIMPLE,
-                            fix_hint=(
-                                f"Remove HEALTHCHECK from {dockerfile_path},"
-                                " add per-service in compose"
-                            ),
+                            fix_hint=(f"Remove HEALTHCHECK from {dockerfile_path}, add per-service in compose"),
                         )
                     )
 
@@ -93,10 +92,7 @@ class ComposePlugin:
                     file_path="docker-compose.prod.yml",
                     auto_fixable=True,
                     fix_complexity=FixComplexity.SIMPLE,
-                    fix_hint=(
-                        'logging: { driver: "json-file",'
-                        ' options: { max-size: "10m", max-file: "3" } }'
-                    ),
+                    fix_hint=('logging: { driver: "json-file", options: { max-size: "10m", max-file: "3" } }'),
                 )
             )
 
@@ -120,10 +116,7 @@ class ComposePlugin:
                 Finding(
                     rule_id="compose.no_healthcheck",
                     severity=ReviewSeverity.WARN,
-                    message=(
-                        "No healthcheck defined in compose"
-                        " — recommend adding per-service healthchecks"
-                    ),
+                    message=("No healthcheck defined in compose — recommend adding per-service healthchecks"),
                     adr_ref="ADR-021 §2.8",
                     file_path="docker-compose.prod.yml",
                     auto_fixable=False,
@@ -131,30 +124,34 @@ class ComposePlugin:
                 )
             )
 
-        # Check for exposed ports (should use 127.0.0.1:PORT:8000, not 0.0.0.0)
-        port_lines = re.findall(r'ports:\s*\n((?:\s+-\s*["\']?\d.*\n)+)', compose_text)
-        for block in port_lines:
-            for line in block.strip().split("\n"):
-                line = line.strip().lstrip("- ").strip("'\"")
-                if line and ":" in line and not line.startswith("127.0.0.1"):
-                    # Check if it's binding to all interfaces
-                    parts = line.split(":")
-                    if len(parts) == 2:
-                        findings.append(
-                            Finding(
-                                rule_id="compose.port_exposed_all_interfaces",
-                                severity=ReviewSeverity.WARN,
-                                message=(
-                                    f"Port binding '{line}' exposes to"
-                                    f" all interfaces — use 127.0.0.1:{line}"
-                                ),
-                                adr_ref="ADR-021 §2.9",
-                                file_path="docker-compose.prod.yml",
-                                auto_fixable=True,
-                                fix_complexity=FixComplexity.TRIVIAL,
-                                fix_hint=f'Use "127.0.0.1:{line}" instead of "{line}"',
-                            )
-                        )
+        # Check memory limits
+        if "mem_limit" not in compose_text and "memory" not in compose_text:
+            findings.append(
+                Finding(
+                    rule_id="compose.no_memory_limit",
+                    severity=ReviewSeverity.WARN,
+                    message="docker-compose.prod.yml has no memory limits",
+                    adr_ref="ADR-021 §2.11",
+                    file_path="docker-compose.prod.yml",
+                    auto_fixable=True,
+                    fix_complexity=FixComplexity.SIMPLE,
+                    fix_hint="Add deploy.resources.limits.memory under each service",
+                )
+            )
+
+        # Check env interpolation anti-pattern (ADR-045)
+        if "environment:" in compose_text and "${" in compose_text:
+            findings.append(
+                Finding(
+                    rule_id="compose.env_interpolation",
+                    severity=ReviewSeverity.BLOCK,
+                    message=("docker-compose.prod.yml uses ${VAR} interpolation — use env_file instead"),
+                    adr_ref="ADR-045",
+                    file_path="docker-compose.prod.yml",
+                    auto_fixable=False,
+                    fix_complexity=FixComplexity.MODERATE,
+                )
+            )
 
         return findings
 

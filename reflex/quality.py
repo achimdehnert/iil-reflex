@@ -20,6 +20,8 @@ import re
 from reflex.config import ReflexConfig
 from reflex.types import QualityCriterion, UCQualityResult
 
+__all__ = ["UCQualityChecker"]
+
 
 class UCQualityChecker:
     """Rule-based UC quality checker (Zirkel 1).
@@ -66,10 +68,13 @@ class UCQualityChecker:
             r"(?:Als\s+(?:ein(?:e)?|der|die)\s+\w+)",
         ]
         found = any(re.search(p, text, re.IGNORECASE) for p in actor_patterns)
-        vague = bool(re.search(
-            r"\b(jemand|(?<!\w)man(?!\w)|(?:^|\.\s+)einer\s+(?:sollte|muss|kann|könnte|macht))\b",
-            text, re.IGNORECASE | re.MULTILINE,
-        ))
+        vague = bool(
+            re.search(
+                r"\b(jemand|(?<!\w)man(?!\w)|(?:^|\.\s+)einer\s+(?:sollte|muss|kann|könnte|macht))\b",
+                text,
+                re.IGNORECASE | re.MULTILINE,
+            )
+        )
 
         return QualityCriterion(
             name="C-01: Spezifischer Akteur",
@@ -169,11 +174,7 @@ class UCQualityChecker:
             r"\b(?:class|def|import)\s+\w+\s*[:\(]",
             r"\b(?:\.py|\.html|\.css|\.js)\b",
         ]
-        violations = [
-            m.group()
-            for p in impl_patterns
-            for m in re.finditer(p, text, re.IGNORECASE)
-        ]
+        violations = [m.group() for p in impl_patterns for m in re.finditer(p, text, re.IGNORECASE)]
 
         return QualityCriterion(
             name="C-07: Keine Implementierungsdetails",
@@ -191,11 +192,7 @@ class UCQualityChecker:
             r"\b(?:irgendwie|irgendwo|irgendwann)\b",
             r"\b(?:etc\.?|usw\.?|und so weiter)\b",
         ]
-        violations = [
-            m.group()
-            for p in soft_patterns
-            for m in re.finditer(p, text, re.IGNORECASE)
-        ]
+        violations = [m.group() for p in soft_patterns for m in re.finditer(p, text, re.IGNORECASE)]
 
         return QualityCriterion(
             name="C-08: Keine weiche Sprache",

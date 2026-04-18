@@ -58,6 +58,8 @@ from reflex.types import (
 
 logger = logging.getLogger(__name__)
 
+__all__ = ["TEMPLATES_DIR", "DomainAgent"]
+
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 
 
@@ -106,9 +108,7 @@ class DomainAgent:
                 sources.append(d.source)
 
         if self.web:
-            web_pages = self.web.search_web(
-                f"{topic} {self.config.vertical}", limit=3
-            )
+            web_pages = self.web.search_web(f"{topic} {self.config.vertical}", limit=3)
             for wp in web_pages:
                 text = wp.text_snippet if len(wp.text) > 500 else wp.text
                 context_parts.append(f"[Web: {wp.url}] {wp.title}: {text}")
@@ -164,9 +164,7 @@ class DomainAgent:
         """
         answers_text = ""
         if expert_answers:
-            answers_text = "\n".join(
-                f"**{q}:** {a}" for q, a in expert_answers.items()
-            )
+            answers_text = "\n".join(f"**{q}:** {a}" for q, a in expert_answers.items())
 
         messages = self._render_template(
             "domain_kb_distill",
@@ -368,11 +366,13 @@ class DomainAgent:
         """Extract JSON from LLM response, stripping reasoning tags."""
         try:
             from promptfw.parsing import extract_json
+
             return extract_json(text)
         except ImportError:
             pass
 
         import re
+
         for pattern in [r"<think>.*?</think>", r"<reasoning>.*?</reasoning>"]:
             text = re.sub(pattern, "", text, flags=re.DOTALL)
 

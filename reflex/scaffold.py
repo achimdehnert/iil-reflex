@@ -18,6 +18,8 @@ import textwrap
 from dataclasses import dataclass
 from pathlib import Path
 
+__all__ = ["ScaffoldOptions", "generate_yaml", "scaffold", "scaffold_force"]
+
 
 @dataclass
 class ScaffoldOptions:
@@ -182,10 +184,7 @@ def scaffold(options: ScaffoldOptions) -> Path:
     """
     output = Path(options.output_path)
     if output.exists():
-        raise FileExistsError(
-            f"reflex.yaml already exists at {output}. "
-            "Use --force to overwrite."
-        )
+        raise FileExistsError(f"reflex.yaml already exists at {output}. Use --force to overwrite.")
 
     content = generate_yaml(options)
     output.write_text(content, encoding="utf-8")

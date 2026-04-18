@@ -30,6 +30,8 @@ from dataclasses import dataclass, field
 logger = logging.getLogger(__name__)
 
 
+__all__ = ["AifwProvider", "LiteLLMProvider", "get_provider"]
+
 # ── AifwProvider (Django context) ─────────────────────────────────────────
 
 
@@ -184,12 +186,11 @@ def get_provider(
         try:
             import django.conf  # noqa: F401
             from aifw import sync_completion  # noqa: F401
+
             logger.debug("Auto-detected aifw — using AifwProvider")
             return AifwProvider(**kwargs)
         except (ImportError, Exception):
             logger.debug("aifw not available — falling back to LiteLLMProvider")
             return LiteLLMProvider(**kwargs)
 
-    raise ValueError(
-        f"Unknown backend: {backend!r}. Choose from: aifw, litellm, auto"
-    )
+    raise ValueError(f"Unknown backend: {backend!r}. Choose from: aifw, litellm, auto")

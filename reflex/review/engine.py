@@ -213,16 +213,12 @@ class ReviewEngine:
             if not include_baseline and not init_baseline and baseline_ids:
                 findings = [f for f in findings if f.rule_id not in baseline_ids]
 
-            # Capture plugin-specific metrics if available
-            plugin_meta = getattr(plug, "last_metrics", {})
-
             result = ReviewResult(
                 repo=repo,
                 review_type=plug.name,
                 findings=findings,
                 duration_s=duration,
                 triggered_by=triggered_by,
-                metadata=plugin_meta if plugin_meta else {},
             )
             results.append(result)
 

@@ -452,10 +452,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
         elif self.path.startswith("/api/stop/"):
             slug = self.path.split("/api/stop/")[1].rstrip("/")
             self._handle_stop(slug)
-        elif self.path == "/api/review":
-            self._serve_review()
-        elif self.path == "/api/review/refresh":
-            self._handle_review_refresh()
         elif self.path == "/api/refresh":
             self._handle_refresh()
         else:
@@ -497,14 +493,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
         data = {slug: asdict(st) for slug, st in statuses.items()}
         self._json_response(data)
 
-    def _serve_review(self):
-        reviews = get_cached_reviews()
-        self._json_response(reviews)
-
-    def _handle_review_refresh(self):
-        reviews = refresh_all_reviews(self.github_dir)
-        self._json_response(reviews)
-
     def _serve_html(self):
         html = generate_dashboard_html()
         body = html.encode("utf-8")
@@ -516,106 +504,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
 
 # ── HTML Generator ────────────────────────────────────────────────────────────
-
-
-
-# Review Score JS — raw string, NOT f-string (avoids brace escaping issues)
-_REVIEW_JS = """
-<script>
-let reviewData = {};
-
-function updateReviewBadges(data) {
-    reviewData = data;
-    let totalScore = 0, totalFindings = 0, totalBlock = 0;
-    let totalUC = 0, ucDraft = 0, ucImpl = 0, ucTested = 0, ucVerified = 0;
-    let counted = 0;
-
-    Object.entries(data).forEach(function([slug, review]) {
-        var pill = document.getElementById("score-" + slug);
-        var fc = document.getElementById("findings-" + slug);
-        if (pill) {
-            var score = review.score;
-            if (score < 0) {
-                pill.textContent = "N/A";
-                pill.className = "score-pill";
-            } else {
-                pill.textContent = score + "%";
-                pill.className = "score-pill " +
-                    (score >= 80 ? "good" : score >= 50 ? "warn" : "bad");
-            }
-        }
-        if (fc && review.findings > 0) {
-            fc.textContent = review.block + " block, " + review.warn + " warn";
-        }
-        if (review.score >= 0) { totalScore += review.score; counted++; }
-        totalFindings += review.findings || 0;
-        totalBlock += review.block || 0;
-        totalUC += review.uc_total || 0;
-        var uc = review.uc_status || {};
-        ucDraft += uc.draft || 0;
-        ucImpl += uc.implemented || 0;
-        ucTested += uc.tested || 0;
-        ucVerified += uc.verified || 0;
-    });
-
-    var avgEl = document.getElementById("q-avg-score");
-    if (avgEl && counted > 0) {
-        var avg = Math.round(totalScore / counted);
-        avgEl.textContent = avg + "%";
-        avgEl.style.color = avg >= 80 ? "var(--green)" : avg >= 50 ? "var(--amber)" : "var(--red)";
-    }
-    var fEl = document.getElementById("q-total-findings");
-    if (fEl) { fEl.textContent = totalFindings; fEl.style.color = "var(--amber)"; }
-    var bEl = document.getElementById("q-total-block");
-    if (bEl) bEl.textContent = totalBlock;
-    var ucEl = document.getElementById("q-total-uc");
-    if (ucEl) { ucEl.textContent = totalUC; ucEl.style.color = "var(--cyan)"; }
-
-    var bar = document.getElementById("q-uc-bar");
-    var legend = document.getElementById("q-uc-legend");
-    if (bar && totalUC > 0) {
-        var pct = function(n) { return ((n / totalUC) * 100).toFixed(1); };
-        bar.innerHTML =
-            (ucDraft ? '<div class="draft" style="width:' + pct(ucDraft) + '%"></div>' : "") +
-            (ucImpl ? '<div class="implemented" style="width:' + pct(ucImpl) + '%"></div>' : "") +
-            (ucTested ? '<div class="tested" style="width:' + pct(ucTested) + '%"></div>' : "") +
-            (ucVerified ? '<div class="verified" style="width:' + pct(ucVerified) + '%"></div>' : "");
-        if (legend) {
-            legend.innerHTML =
-                '<span>\u25a0 Draft: ' + ucDraft + '</span>' +
-                '<span style="color:var(--accent)">\u25a0 Impl: ' + ucImpl + '</span>' +
-                '<span style="color:var(--green)">\u25a0 Tested: ' + ucTested + '</span>' +
-                '<span style="color:var(--cyan)">\u25a0 Verified: ' + ucVerified + '</span>';
-        }
-    }
-}
-
-function fetchReviews() {
-    fetch("/api/review").then(function(resp) {
-        return resp.json();
-    }).then(function(data) {
-        updateReviewBadges(data);
-    }).catch(function(e) {
-        console.error("Review fetch failed:", e);
-    });
-}
-
-function refreshReviews() {
-    showToast("Running reviews for all repos...", 10000);
-    fetch("/api/review/refresh").then(function(resp) {
-        return resp.json();
-    }).then(function(data) {
-        updateReviewBadges(data);
-        showToast("Reviews updated!", 3000);
-    }).catch(function(e) {
-        showToast("Review refresh failed: " + e, 5000);
-    });
-}
-
-setTimeout(fetchReviews, 2000);
-</script>
-"""
-
 
 def generate_dashboard_html() -> str:
     """Generate the full dashboard HTML with embedded CSS/JS."""
@@ -638,17 +526,11 @@ def generate_dashboard_html() -> str:
             </div>
             <p class="desc">{hub['description']}</p>
             <div class="tags">{tags_html}</div>
-            <div class="review-badge" id="review-{hub['slug']}">
-                <span class="score-pill" id="score-{hub['slug']}">— %</span>
-                <span class="finding-count" id="findings-{hub['slug']}"></span>
-            </div>
             <div class="card-links">
                 <a href="http://localhost:{hub.get('port', '#')}" class="link-app"
                    target="_blank" id="link-{hub['slug']}">&#9654; App</a>
                 <a href="http://localhost:{hub.get('port', '#')}/admin/"
                    class="link-admin" target="_blank">&#9881; Admin</a>
-                <a href="{GRAFANA_URL}/d/reflex-review?var-repo={hub['slug']}" class="link-grafana" target="_blank">&#128202; Grafana</a>
-                <a href="{OUTLINE_URL}/doc/uc-overview-{hub['slug']}" class="link-outline" target="_blank">&#128218; UCs</a>
                 <button class="btn-start" id="btn-{hub['slug']}"
                         onclick="toggleHub('{hub['slug']}')"
                         title="Start/Stop via Docker Compose">&#9654; Start</button>
@@ -792,62 +674,6 @@ def generate_dashboard_html() -> str:
         .bg-pink {{ background: rgba(236,72,153,0.15); color: var(--pink); }}
         .bg-orange {{ background: rgba(249,115,22,0.15); color: var(--orange); }}
         .bg-muted {{ background: rgba(148,163,184,0.15); color: var(--muted); }}
-        .review-badge {{
-            display: flex; gap: 0.5rem; align-items: center;
-            margin-top: 0.25rem;
-        }}
-        .score-pill {{
-            display: inline-flex; align-items: center;
-            padding: 0.15em 0.6em; border-radius: 12px;
-            font-size: 0.75rem; font-weight: 700;
-            background: rgba(148,163,184,0.15); color: var(--muted);
-            transition: all 0.3s;
-        }}
-        .score-pill.good {{ background: rgba(34,197,94,0.15); color: var(--green); }}
-        .score-pill.warn {{ background: rgba(245,158,11,0.15); color: var(--amber); }}
-        .score-pill.bad {{ background: rgba(239,68,68,0.15); color: var(--red); }}
-        .finding-count {{
-            font-size: 0.72rem; color: var(--muted);
-        }}
-        .link-grafana {{ color: var(--purple); background: rgba(168,85,247,0.1); }}
-        .link-grafana:hover {{ background: rgba(168,85,247,0.2); }}
-        .link-outline {{ color: var(--cyan); background: rgba(6,182,212,0.1); }}
-        .link-outline:hover {{ background: rgba(6,182,212,0.2); }}
-        .quality-summary {{
-            margin-top: 2.5rem; padding: 2rem;
-            background: var(--surface); border: 1px solid var(--border);
-            border-radius: 12px;
-        }}
-        .quality-summary h2 {{
-            font-size: 1.3rem; font-weight: 700; margin-bottom: 1rem;
-            background: linear-gradient(135deg, var(--purple), var(--cyan));
-            background-clip: text; -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }}
-        .quality-grid {{
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 1rem;
-        }}
-        .quality-card {{
-            background: rgba(15,23,42,0.5); border: 1px solid var(--border);
-            border-radius: 8px; padding: 1rem; text-align: center;
-        }}
-        .quality-card .q-value {{
-            font-size: 2rem; font-weight: 800;
-        }}
-        .quality-card .q-label {{
-            font-size: 0.75rem; color: var(--muted);
-            text-transform: uppercase; letter-spacing: 0.05em;
-        }}
-        .uc-bar {{
-            display: flex; height: 8px; border-radius: 4px;
-            overflow: hidden; margin-top: 0.5rem;
-        }}
-        .uc-bar .draft {{ background: var(--amber); }}
-        .uc-bar .implemented {{ background: var(--accent); }}
-        .uc-bar .tested {{ background: var(--green); }}
-        .uc-bar .verified {{ background: var(--cyan); }}
         .toast {{
             position: fixed; bottom: 2rem; right: 2rem;
             background: var(--surface); border: 1px solid var(--border);
@@ -905,37 +731,6 @@ def generate_dashboard_html() -> str:
         {hub_cards}
     </div>
     <div class="no-results" id="no-results">No hubs match your search.</div>
-    <div class="quality-summary" id="quality-summary">
-        <h2>&#128202; Quality Controlling</h2>
-        <div class="quality-grid">
-            <div class="quality-card">
-                <div class="q-value" id="q-avg-score" style="color:var(--muted)">&mdash;</div>
-                <div class="q-label">Avg Score</div>
-            </div>
-            <div class="quality-card">
-                <div class="q-value" id="q-total-findings" style="color:var(--muted)">&mdash;</div>
-                <div class="q-label">Findings</div>
-            </div>
-            <div class="quality-card">
-                <div class="q-value" id="q-total-block" style="color:var(--red)">&mdash;</div>
-                <div class="q-label">Blockers</div>
-            </div>
-            <div class="quality-card">
-                <div class="q-value" id="q-total-uc" style="color:var(--cyan)">&mdash;</div>
-                <div class="q-label">Use Cases</div>
-            </div>
-            <div class="quality-card" style="grid-column: span 2;">
-                <div class="q-label" style="margin-bottom:0.5rem">UC Status Gesamt</div>
-                <div class="uc-bar" id="q-uc-bar"></div>
-                <div style="display:flex;gap:1rem;justify-content:center;margin-top:0.5rem;font-size:0.72rem;color:var(--muted)" id="q-uc-legend"></div>
-            </div>
-        </div>
-        <div style="margin-top:1rem;display:flex;gap:0.75rem;justify-content:center">
-            <a href="{GRAFANA_URL}/d/reflex-review" class="link-grafana" style="font-size:0.85rem;padding:0.5em 1.2em;border-radius:8px" target="_blank">&#128202; Grafana Dashboard</a>
-            <a href="{OUTLINE_URL}/collection/reflex" class="link-outline" style="font-size:0.85rem;padding:0.5em 1.2em;border-radius:8px" target="_blank">&#128218; Outline Docs</a>
-            <button onclick="refreshReviews()" class="filter-btn" style="font-size:0.85rem">&#8635; Refresh Reviews</button>
-        </div>
-    </div>
     <div class="toast" id="toast"></div>
     <footer>
         <p>IIL Platform &bull; REFLEX Dashboard &bull;
@@ -1066,7 +861,6 @@ cards.forEach(card => {{
 fetchStatus();
 setInterval(fetchStatus, 30000);
 </script>
-{_REVIEW_JS}
 </body>
 </html>"""
 
@@ -1083,24 +877,18 @@ def run_dashboard(
 
     DashboardHandler.github_dir = github_dir
 
-    print("\n  REFLEX Dashboard — Local Development")
+    print(f"\n  REFLEX Dashboard — Local Development")
     print(f"  {'─' * 45}")
     print(f"  GitHub Dir: {github_dir}")
     print(f"  Hubs:       {len(HUBS)}")
     print(f"  URL:        http://localhost:{port}")
     print(f"  {'─' * 45}")
-    print("  Press Ctrl+C to stop.\n")
+    print(f"  Press Ctrl+C to stop.\n")
 
     # Initial health check in background
     threading.Thread(
         target=refresh_all_health, args=(github_dir,), daemon=True
     ).start()
-
-    # Initial review scores in background (delayed 5s to not slow startup)
-    def _delayed_review():
-        time.sleep(5)
-        refresh_all_reviews(github_dir)
-    threading.Thread(target=_delayed_review, daemon=True).start()
 
     server = HTTPServer(("0.0.0.0", port), DashboardHandler)
     try:
@@ -1108,73 +896,3 @@ def run_dashboard(
     except KeyboardInterrupt:
         print("\n  Dashboard stopped.")
         server.server_close()
-
-
-# ── Review Score Cache ────────────────────────────────────────────────────────
-
-_review_cache: dict[str, dict] = {}
-_review_lock = threading.Lock()
-GRAFANA_URL = os.environ.get(
-    "REFLEX_GRAFANA_URL", "http://localhost:3000"
-)
-OUTLINE_URL = os.environ.get(
-    "REFLEX_OUTLINE_URL", "https://knowledge.iil.pet"
-)
-
-
-def refresh_all_reviews(github_dir: str) -> dict[str, dict]:
-    """Run reflex review for all repos and cache results."""
-    from reflex.review import run_review
-
-    results: dict[str, dict] = {}
-    for hub in HUBS:
-        slug = hub["slug"]
-        repo_path = Path(github_dir) / slug
-        if not repo_path.is_dir():
-            continue
-        try:
-            review_results = run_review(
-                repo=slug,
-                github_dir=github_dir,
-                triggered_by="dashboard",
-            )
-            total_findings = sum(len(r.findings) for r in review_results)
-            total_block = sum(len(r.findings_block) for r in review_results)
-            total_warn = sum(len(r.findings_warn) for r in review_results)
-            avg_score = (
-                round(sum(r.score_pct for r in review_results) / len(review_results), 1)
-                if review_results else 0
-            )
-            # Extract UC metadata if available
-            uc_meta = {}
-            for r in review_results:
-                if r.review_type == "uc" and r.metadata:
-                    uc_meta = r.metadata
-
-            results[slug] = {
-                "score": avg_score,
-                "findings": total_findings,
-                "block": total_block,
-                "warn": total_warn,
-                "plugins": len(review_results),
-                "uc_total": uc_meta.get("uc_total", 0),
-                "uc_status": uc_meta.get("status_counts", {}),
-            }
-        except Exception as exc:
-            logger.warning("Review failed for %s: %s", slug, exc)
-            results[slug] = {
-                "score": -1, "findings": 0, "block": 0,
-                "warn": 0, "plugins": 0, "uc_total": 0,
-                "uc_status": {},
-            }
-
-    with _review_lock:
-        _review_cache.clear()
-        _review_cache.update(results)
-    return results
-
-
-def get_cached_reviews() -> dict[str, dict]:
-    """Return cached review scores."""
-    with _review_lock:
-        return dict(_review_cache)
