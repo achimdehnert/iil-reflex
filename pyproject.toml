@@ -8,7 +8,7 @@ version = "0.5.0"
 description = "REFLEX — Evidence-based UI development with LLM domain agent, UC dialog, permission testing, and dev cycle orchestration"
 readme = "README.md"
 license = {text = "MIT"}
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 authors = [
     { name = "Achim Dehnert", email = "achim@iil.gmbh" },
 ]
