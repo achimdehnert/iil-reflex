@@ -53,9 +53,9 @@ class MetricsWriter:
     """Write REFLEX review results to PostgreSQL."""
 
     def __init__(self, database_url: str | None = None):
-        self._url = database_url or os.environ.get(
+        self._url = database_url or os.environ.get(  # hardcoded-ok: CLI package, decouple not a dependency
             "REFLEX_DATABASE_URL",
-            os.environ.get("DATABASE_URL", ""),
+            os.environ.get("DATABASE_URL", ""),  # hardcoded-ok: CLI package, decouple not a dependency
         )
         self._conn = None
 

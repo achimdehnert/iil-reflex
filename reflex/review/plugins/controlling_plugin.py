@@ -184,7 +184,7 @@ class ControllingPlugin:
 
     def _check_metrics_trend(self, repo: str) -> list[Finding]:
         """Check if review metrics show a worsening trend."""
-        db_url = os.environ.get("REFLEX_DATABASE_URL", "")
+        db_url = os.environ.get("REFLEX_DATABASE_URL", "")  # hardcoded-ok: CLI package, decouple not a dependency
         if not db_url:
             return [
                 Finding(

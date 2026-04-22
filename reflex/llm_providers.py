@@ -118,17 +118,17 @@ class LiteLLMProvider:
             "google": "GOOGLE_API_KEY",
         }
         env_var = env_map.get(provider, "")
-        if env_var and os.environ.get(env_var):
+        if env_var and os.environ.get(env_var):  # hardcoded-ok: dynamic key (runtime variable), decouple.config() requires literal keys
             return
 
-        secrets_dir = os.environ.get(
+        secrets_dir = os.environ.get(  # hardcoded-ok: CLI package, decouple not a dependency
             "REFLEX_SECRETS_DIR",
             os.path.expanduser("~/shared/secrets"),
         )
         key_file = os.path.join(secrets_dir, env_var.lower() if env_var else "")
         if key_file and os.path.isfile(key_file):
             with open(key_file) as f:
-                os.environ[env_var] = f.read().strip()
+                os.environ[env_var] = f.read().strip()  # hardcoded-ok: writes env for subprocess, not a config read
             logger.debug("Loaded %s from %s", env_var, key_file)
 
     def complete(
