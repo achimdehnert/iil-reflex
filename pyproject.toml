@@ -37,7 +37,7 @@ web = [
     "hishel>=0.0.33",
     "pyrate-limiter>=3.6",
     "beautifulsoup4>=4.12",
-    "pdfplumber>=0.11",
+    "iil-ingest[pdf,ocr] @ git+https://github.com/achimdehnert/iil-ingest.git",
 ]
 dev = [
     "pytest>=8.0",
@@ -82,3 +82,6 @@ select = ["E", "F", "I", "W", "UP", "B", "SIM"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "integration: requires real system deps (tesseract, poppler) — run with -m integration",
+]

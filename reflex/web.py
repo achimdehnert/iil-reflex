@@ -291,17 +291,17 @@ class HttpxWebProvider:
 
     @staticmethod
     def _extract_pdf_from_bytes(content: bytes) -> str:
-        """Extract text from PDF bytes using pdfplumber."""
+        """Extract text from PDF bytes via iil-ingest (pdfplumber + Tesseract OCR fallback)."""
         try:
-            import io
+            from ingest.extractors.pdf import PDFExtractor
 
-            import pdfplumber
-
-            with pdfplumber.open(io.BytesIO(content)) as pdf:
-                return "\n".join(page.extract_text() or "" for page in pdf.pages)
+            result = PDFExtractor(ocr_fallback=True).extract(content)
+            for err in result.extraction_errors:
+                logger.warning("PDF extraction: %s", err)
+            return result.text
         except ImportError:
-            logger.warning("pdfplumber not installed — cannot extract PDF text")
-            return "[PDF content — install pdfplumber to extract text]"
+            logger.warning("iil-ingest not installed — cannot extract PDF text")
+            return "[PDF content — install iil-ingest[pdf] to extract text]"
         except Exception as e:
             logger.error("PDF extraction failed: %s", e)
             return f"[PDF extraction error: {e}]"
@@ -575,17 +575,21 @@ class PDFDocumentProvider:
         self.web = web or HttpxWebProvider()
 
     def read_file(self, path: str) -> str:
-        """Extract text from a local PDF file."""
+        """Extract text from a local PDF file via iil-ingest (pdfplumber + OCR fallback)."""
         try:
-            import pdfplumber
-
-            with pdfplumber.open(path) as pdf:
-                return "\n".join(page.extract_text() or "" for page in pdf.pages)
+            from ingest.extractors.pdf import PDFExtractor
         except ImportError as exc:
             raise ImportError(
-                "pdfplumber is required for PDF reading. Install with: "
-                "pip install iil-reflex[web]  or  pip install pdfplumber"
+                "iil-ingest[pdf] is required for PDF reading. Install with: "
+                "pip install iil-reflex[web]"
             ) from exc
+
+        with open(path, "rb") as fh:
+            data = fh.read()
+        result = PDFExtractor(ocr_fallback=True).extract(data)
+        for err in result.extraction_errors:
+            logger.warning("PDF read_file: %s", err)
+        return result.text
 
     def read_url(self, url: str) -> str:
         """Download and extract text from a PDF URL."""
