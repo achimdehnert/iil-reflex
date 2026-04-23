@@ -1,1 +1,1 @@
-/home/devuser/github/platform/.windsurf/workflows/knowledge-capture.md
+/home/adehnert/CascadeProjects/platform/.windsurf/workflows/knowledge-capture.md

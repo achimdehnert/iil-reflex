@@ -1,1 +1,1 @@
-/home/devuser/github/platform/.windsurf/rules/htmx-templates.md
+/home/adehnert/CascadeProjects/platform/.windsurf/rules/htmx-templates.md

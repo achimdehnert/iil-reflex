@@ -1,1 +1,1 @@
-/home/devuser/github/platform/.windsurf/rules/docker-deployment.md
+/home/adehnert/CascadeProjects/platform/.windsurf/rules/docker-deployment.md

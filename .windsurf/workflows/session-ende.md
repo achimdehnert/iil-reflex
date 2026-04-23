@@ -1,1 +1,1 @@
-/home/devuser/github/platform/.windsurf/workflows/session-ende.md
+/home/adehnert/CascadeProjects/platform/.windsurf/workflows/session-ende.md

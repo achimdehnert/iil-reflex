@@ -1,1 +1,1 @@
-/home/devuser/github/platform/.windsurf/workflows/docu-update.md
+/home/adehnert/CascadeProjects/platform/.windsurf/workflows/docu-update.md

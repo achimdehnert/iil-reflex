@@ -1,1 +1,1 @@
-/home/devuser/github/platform/.windsurf/rules/platform-principles.md
+/home/adehnert/CascadeProjects/platform/.windsurf/rules/platform-principles.md

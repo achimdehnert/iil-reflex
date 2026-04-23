@@ -1,1 +1,1 @@
-/home/devuser/github/platform/.windsurf/workflows/session-docu.md
+/home/adehnert/CascadeProjects/platform/.windsurf/workflows/session-docu.md
