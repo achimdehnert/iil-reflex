@@ -27,6 +27,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import threading
 import time
 from datetime import UTC, datetime
 from typing import Any
@@ -41,6 +42,63 @@ __all__ = ["HttpxWebProvider", "PubChemAdapter", "GESTISAdapter", "PDFDocumentPr
 
 _DEFAULT_UA = "Mozilla/5.0 (REFLEX/0.2; SDS Research Bot; +https://github.com/achimdehnert/iil-reflex)"
 _DEFAULT_TIMEOUT = 30
+
+_RETRYABLE_STATUS: frozenset[int] = frozenset({408, 425, 429, 500, 502, 503, 504})
+
+
+def _retry_get(client, url: str, **kwargs):
+    """GET with exponential-backoff retry on transient HTTP/network errors.
+
+    Activates automatically when *tenacity* is installed (``pip install iil-reflex[web]``).
+    Falls back to a single undecorated attempt when *tenacity* is absent.
+    """
+    try:
+        import httpx
+        from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential_jitter
+    except ImportError:
+        return client.get(url, **kwargs)
+
+    def _is_retryable(exc: BaseException) -> bool:
+        if isinstance(exc, (httpx.TimeoutException, httpx.NetworkError, httpx.RemoteProtocolError)):
+            return True
+        if isinstance(exc, httpx.HTTPStatusError):
+            return exc.response.status_code in _RETRYABLE_STATUS
+        return False
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential_jitter(initial=0.5, max=8.0),
+        retry=retry_if_exception(_is_retryable),
+        reraise=True,
+    )
+    def _do():
+        return client.get(url, **kwargs)
+
+    return _do()
+
+
+def _make_rate_limiter(rate_per_second: float):
+    """Return a no-arg callable that enforces *rate_per_second* requests/s.
+
+    Uses *pyrate-limiter* when available; falls back to ``time.sleep``.
+    """
+    try:
+        from pyrate_limiter import Duration, Limiter, Rate
+
+        _rate = Rate(int(max(1, rate_per_second)), Duration.SECOND)
+        _lim = Limiter(_rate, raise_when_fail=False, max_delay=Duration.SECOND * 30)
+
+        def _acquire() -> None:
+            _lim.try_acquire("default")
+
+        return _acquire
+    except ImportError:
+        _delay = 1.0 / rate_per_second
+
+        def _sleep() -> None:
+            time.sleep(_delay)
+
+        return _sleep
 
 
 def _require_httpx():
@@ -106,11 +164,40 @@ class HttpxWebProvider:
         self.timeout = timeout
         self.max_pages = max_pages
         self.allowed_domains = allowed_domains or []
+        self._client: Any = None
+        self._lock = threading.Lock()
+
+    # -- lifecycle ----------------------------------------------------------
+
+    def _get_client(self):
+        """Thread-safe lazy-init of the shared ``httpx.Client`` (connection pool reuse)."""
+        if self._client is None:
+            with self._lock:
+                if self._client is None:
+                    httpx = _require_httpx()
+                    self._client = httpx.Client(
+                        headers={"User-Agent": self.user_agent},
+                        timeout=self.timeout,
+                        follow_redirects=True,
+                    )
+        return self._client
+
+    def close(self) -> None:
+        """Close the underlying HTTP client and release connection pool."""
+        if self._client is not None:
+            self._client.close()
+            self._client = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc) -> None:
+        self.close()
+
+    # -- WebProvider protocol -----------------------------------------------
 
     def fetch(self, url: str) -> WebPage:
         """Fetch a URL and return structured WebPage."""
-        httpx = _require_httpx()
-
         if self.allowed_domains:
             from urllib.parse import urlparse
 
@@ -120,13 +207,7 @@ class HttpxWebProvider:
                 return WebPage(url=url, title="Blocked", text="", status_code=403)
 
         try:
-            with httpx.Client(
-                headers={"User-Agent": self.user_agent},
-                timeout=self.timeout,
-                follow_redirects=True,
-            ) as client:
-                resp = client.get(url)
-
+            resp = _retry_get(self._get_client(), url)
             content_type = resp.headers.get("content-type", "")
             now = datetime.now(UTC).isoformat()
 
@@ -166,25 +247,18 @@ class HttpxWebProvider:
                 scraped_at=now,
             )
 
-        except (OSError, ValueError) as e:
+        except Exception as e:
             logger.error("Failed to fetch %s: %s", url, e)
             return WebPage(url=url, title="Error", text=str(e), status_code=0)
 
     def search_web(self, query: str, limit: int = 5) -> list[WebPage]:
         """Search via DuckDuckGo HTML (no API key needed) and scrape results."""
-        httpx = _require_httpx()
-
         try:
-            with httpx.Client(
-                headers={"User-Agent": self.user_agent},
-                timeout=self.timeout,
-                follow_redirects=True,
-            ) as client:
-                resp = client.get(
-                    "https://html.duckduckgo.com/html/",
-                    params={"q": query},
-                )
-
+            resp = _retry_get(
+                self._get_client(),
+                "https://html.duckduckgo.com/html/",
+                params={"q": query},
+            )
             BeautifulSoup = _require_bs4()
             soup = BeautifulSoup(resp.text, "html.parser")
 
@@ -211,7 +285,7 @@ class HttpxWebProvider:
 
             return results[:limit]
 
-        except (OSError, ValueError) as e:
+        except Exception as e:
             logger.error("Web search failed: %s", e)
             return []
 
@@ -254,6 +328,7 @@ class PubChemAdapter:
 
     def __init__(self, web: HttpxWebProvider | None = None):
         self.web = web or HttpxWebProvider()
+        self._limiter = _make_rate_limiter(5.0)
 
     def lookup_by_name(self, name: str) -> SDSData | None:
         """Look up substance by name -> structured SDS data.
@@ -289,10 +364,10 @@ class PubChemAdapter:
     def _build_sds(self, cid: int, query: str) -> SDSData | None:
         """Build SDSData from multiple PubChem endpoints."""
         props = self._get_properties(cid)
-        time.sleep(0.25)  # rate-limit: PubChem allows ~5 req/s
+        self._limiter()
         iupac = props.get("IUPACName", query)
         cas = self._get_cas_from_synonyms(cid)
-        time.sleep(0.25)
+        self._limiter()
         ghs = self._get_ghs_classification(cid)
         url = f"{self.BASE_URL}/compound/cid/{cid}/JSON"
 
@@ -412,6 +487,7 @@ class GESTISAdapter:
 
     def __init__(self, web: HttpxWebProvider | None = None):
         self.web = web or HttpxWebProvider()
+        self._limiter = _make_rate_limiter(5.0)
 
     def search(self, query: str) -> list[dict[str, str]]:
         """Search GESTIS for substances matching query."""

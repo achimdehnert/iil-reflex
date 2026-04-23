@@ -211,3 +211,121 @@ class TestGESTISAdapter:
         mock_json = json.dumps({"chapters": [{"chapterNr": "1", "sections": []}]})
         result = GESTISAdapter._parse_gestis(mock_json, "url")
         assert result is None
+
+
+# ── HttpxWebProvider lifecycle ────────────────────────────────────────────
+
+
+class TestHttpxWebProviderLifecycle:
+    def test_client_is_none_before_first_use(self):
+        from reflex.web import HttpxWebProvider
+        p = HttpxWebProvider()
+        assert p._client is None
+
+    def test_get_client_returns_same_instance(self):
+        import respx
+
+        from reflex.web import HttpxWebProvider
+
+        with respx.mock:
+            respx.get("https://example.com").respond(200, text="<html><body>hi</body></html>")
+            p = HttpxWebProvider()
+            p.fetch("https://example.com")
+            c1 = p._client
+            p.fetch("https://example.com")
+            c2 = p._client
+        p.close()
+        assert c1 is c2, "Client must be reused across requests (connection pool)"
+
+    def test_close_sets_client_to_none(self):
+        import respx
+
+        from reflex.web import HttpxWebProvider
+
+        with respx.mock:
+            respx.get("https://example.com").respond(200, text="<html><body>ok</body></html>")
+            p = HttpxWebProvider()
+            p.fetch("https://example.com")
+            assert p._client is not None
+            p.close()
+        assert p._client is None
+
+    def test_context_manager_closes_on_exit(self):
+        import respx
+
+        from reflex.web import HttpxWebProvider
+
+        with respx.mock:
+            respx.get("https://example.com").respond(200, text="<html><body>ok</body></html>")
+            with HttpxWebProvider() as p:
+                p.fetch("https://example.com")
+                assert p._client is not None
+        assert p._client is None
+
+    def test_close_is_idempotent(self):
+        from reflex.web import HttpxWebProvider
+        p = HttpxWebProvider()
+        p.close()
+        p.close()
+        assert p._client is None
+
+
+# ── _retry_get helper ─────────────────────────────────────────────────────
+
+
+class TestRetryGet:
+    def test_returns_response_on_success(self):
+        import httpx
+        import respx
+
+        from reflex.web import _retry_get
+
+        with respx.mock:
+            respx.get("https://example.com/data").respond(200, json={"ok": True})
+            client = httpx.Client()
+            resp = _retry_get(client, "https://example.com/data")
+        client.close()
+        assert resp.status_code == 200
+
+    def test_passes_params(self):
+        import httpx
+        import respx
+
+        from reflex.web import _retry_get
+
+        with respx.mock:
+            route = respx.get("https://api.example.com/search").respond(200, json=[])
+            client = httpx.Client()
+            _retry_get(client, "https://api.example.com/search", params={"q": "test"})
+        client.close()
+        assert route.called
+
+
+# ── _make_rate_limiter helper ─────────────────────────────────────────────
+
+
+class TestMakeRateLimiter:
+    def test_returns_callable(self):
+        from reflex.web import _make_rate_limiter
+        limiter = _make_rate_limiter(5.0)
+        assert callable(limiter)
+
+    def test_callable_executes_without_error(self):
+        from reflex.web import _make_rate_limiter
+        limiter = _make_rate_limiter(100.0)
+        limiter()
+
+
+# ── Adapter rate limiter init ─────────────────────────────────────────────
+
+
+class TestAdapterRateLimiter:
+    def test_pubchem_adapter_has_limiter(self):
+        from reflex.web import PubChemAdapter
+        adapter = PubChemAdapter()
+        assert callable(adapter._limiter)
+
+    def test_gestis_adapter_has_limiter(self):
+        from reflex.web import GESTISAdapter
+        adapter = GESTISAdapter()
+        assert callable(adapter._limiter)
