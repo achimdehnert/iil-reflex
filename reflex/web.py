@@ -81,11 +81,14 @@ def _make_rate_limiter(rate_per_second: float):
     """Return a no-arg callable that enforces *rate_per_second* requests/s.
 
     Uses *pyrate-limiter* when available; falls back to ``time.sleep``.
+    Handles fractional rates (e.g. 2.5/s) without int-truncation by
+    expressing the limit as 1 request per N milliseconds.
     """
     try:
         from pyrate_limiter import Duration, Limiter, Rate
 
-        _rate = Rate(int(max(1, rate_per_second)), Duration.SECOND)
+        interval_ms = max(1, int(1000.0 / rate_per_second))
+        _rate = Rate(1, Duration.MILLISECOND * interval_ms)
         _lim = Limiter(_rate, raise_when_fail=False, max_delay=Duration.SECOND * 30)
 
         def _acquire() -> None:
@@ -159,26 +162,43 @@ class HttpxWebProvider:
         timeout: int = _DEFAULT_TIMEOUT,
         max_pages: int = 10,
         allowed_domains: list[str] | None = None,
+        cache: bool = True,
     ):
         self.user_agent = user_agent
         self.timeout = timeout
         self.max_pages = max_pages
         self.allowed_domains = allowed_domains or []
+        self.cache = cache
         self._client: Any = None
         self._lock = threading.Lock()
 
     # -- lifecycle ----------------------------------------------------------
 
     def _get_client(self):
-        """Thread-safe lazy-init of the shared ``httpx.Client`` (connection pool reuse)."""
+        """Thread-safe lazy-init of the shared ``httpx.Client`` (connection pool reuse).
+
+        Uses *hishel* ``CacheTransport`` when available and ``cache=True``
+        to avoid redundant network requests for identical URLs (PubChem, GESTIS).
+        """
         if self._client is None:
             with self._lock:
                 if self._client is None:
                     httpx = _require_httpx()
+                    transport = None
+                    if self.cache:
+                        try:
+                            import hishel
+                            transport = hishel.CacheTransport(
+                                transport=httpx.HTTPTransport(),
+                                storage=hishel.FileStorage(),
+                            )
+                        except ImportError:
+                            pass
                     self._client = httpx.Client(
                         headers={"User-Agent": self.user_agent},
                         timeout=self.timeout,
                         follow_redirects=True,
+                        transport=transport,
                     )
         return self._client
 

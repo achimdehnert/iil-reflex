@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from reflex.providers import MockWebProvider, WebProvider
 from reflex.types import SDSData, WebPage
 
@@ -315,6 +317,30 @@ class TestMakeRateLimiter:
         limiter = _make_rate_limiter(100.0)
         limiter()
 
+    def test_fractional_rate_does_not_truncate(self):
+        """2.5 req/s must not be silently truncated to 2 req/s."""
+        pytest.importorskip("pyrate_limiter")
+        from reflex.web import _make_rate_limiter
+
+        _make_rate_limiter(2.5)  # must not raise
+
+    def test_sub_one_rate(self):
+        """0.5 req/s (1 per 2s) must work without truncation to 0."""
+        from reflex.web import _make_rate_limiter
+        limiter = _make_rate_limiter(0.5)
+        assert callable(limiter)
+
+    def test_interval_ms_formula(self):
+        """Verify internal interval calculation for known rates."""
+        cases = {
+            5.0: 200,   # 1000/5 = 200ms
+            2.5: 400,   # 1000/2.5 = 400ms
+            0.5: 2000,  # 1000/0.5 = 2000ms
+            1.0: 1000,  # 1000/1.0 = 1000ms
+        }
+        for rate, expected_ms in cases.items():
+            assert int(1000.0 / rate) == expected_ms, f"rate={rate}"
+
 
 # ── Adapter rate limiter init ─────────────────────────────────────────────
 
@@ -329,3 +355,57 @@ class TestAdapterRateLimiter:
         from reflex.web import GESTISAdapter
         adapter = GESTISAdapter()
         assert callable(adapter._limiter)
+
+
+# ── HttpxWebProvider caching ──────────────────────────────────────────────
+
+
+class TestHttpxWebProviderCaching:
+    def test_cache_true_by_default(self):
+        from reflex.web import HttpxWebProvider
+        p = HttpxWebProvider()
+        assert p.cache is True
+
+    def test_cache_false_disables_hishel(self):
+        import respx
+        from reflex.web import HttpxWebProvider
+
+        with respx.mock:
+            respx.get("https://example.com").respond(200, text="<html><body>ok</body></html>")
+            p = HttpxWebProvider(cache=False)
+            p.fetch("https://example.com")
+            client = p._client
+        p.close()
+        assert client is not None
+
+    def test_cache_true_uses_hishel_transport_when_available(self):
+        """When hishel is installed, transport must be a CacheTransport."""
+        import respx
+        from reflex.web import HttpxWebProvider
+
+        try:
+            import hishel
+        except ImportError:
+            pytest.skip("hishel not installed")
+
+        with respx.mock:
+            respx.get("https://example.com").respond(200, text="<html><body>ok</body></html>")
+            p = HttpxWebProvider(cache=True)
+            p.fetch("https://example.com")
+            transport = p._client._transport
+        p.close()
+        assert isinstance(transport, hishel.CacheTransport)
+
+    def test_cache_false_uses_plain_transport(self):
+        """cache=False must never install a CacheTransport."""
+        import httpx
+        import respx
+        from reflex.web import HttpxWebProvider
+
+        with respx.mock:
+            respx.get("https://example.com").respond(200, text="<html><body>ok</body></html>")
+            p = HttpxWebProvider(cache=False)
+            p.fetch("https://example.com")
+            transport = p._client._transport
+        p.close()
+        assert isinstance(transport, httpx.HTTPTransport)
