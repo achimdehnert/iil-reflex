@@ -1,1 +1,0 @@
-/home/adehnert/CascadeProjects/platform/.windsurf/workflows/workflow-index.md
