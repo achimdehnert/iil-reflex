@@ -1,1 +1,1 @@
-/home/adehnert/CascadeProjects/platform/.windsurf/rules/iil-packages.md
+/home/devuser/github/platform/.windsurf/rules/iil-packages.md

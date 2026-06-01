@@ -1,1 +1,1 @@
-/home/adehnert/CascadeProjects/platform/.windsurf/rules/django-models-views.md
+/home/devuser/github/platform/.windsurf/rules/django-models-views.md

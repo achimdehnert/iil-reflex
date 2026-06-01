@@ -1,1 +1,1 @@
-/home/adehnert/CascadeProjects/platform/.windsurf/rules/testing.md
+/home/devuser/github/platform/.windsurf/rules/testing.md

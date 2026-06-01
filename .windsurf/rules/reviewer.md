@@ -1,1 +1,1 @@
-/home/adehnert/CascadeProjects/platform/.windsurf/rules/reviewer.md
+/home/devuser/github/platform/.windsurf/rules/reviewer.md
