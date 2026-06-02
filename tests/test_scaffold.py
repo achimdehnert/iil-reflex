@@ -86,7 +86,9 @@ class TestScaffoldWrite:
     def test_should_create_file(self, tmp_path: Path):
         out = tmp_path / "reflex.yaml"
         options = ScaffoldOptions(
-            hub_name="new-hub", tier=2, output_path=str(out),
+            hub_name="new-hub",
+            tier=2,
+            output_path=str(out),
         )
         result = scaffold(options)
         assert result.exists()
@@ -96,7 +98,9 @@ class TestScaffoldWrite:
         out = tmp_path / "reflex.yaml"
         out.write_text("existing content")
         options = ScaffoldOptions(
-            hub_name="new-hub", tier=2, output_path=str(out),
+            hub_name="new-hub",
+            tier=2,
+            output_path=str(out),
         )
         with pytest.raises(FileExistsError):
             scaffold(options)
@@ -105,7 +109,9 @@ class TestScaffoldWrite:
         out = tmp_path / "reflex.yaml"
         out.write_text("old content")
         options = ScaffoldOptions(
-            hub_name="force-hub", tier=1, output_path=str(out),
+            hub_name="force-hub",
+            tier=1,
+            output_path=str(out),
         )
         result = scaffold_force(options)
         assert "hub_name: force-hub" in result.read_text()

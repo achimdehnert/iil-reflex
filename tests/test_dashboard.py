@@ -2,31 +2,21 @@
 
 from __future__ import annotations
 
-import json
-import threading
-import time
 from collections import Counter
-from http.client import HTTPConnection
-from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from reflex.dashboard import (
     COMPOSE_FILES,
     HUBS,
-    DashboardHandler,
     HubStatus,
     check_hub_health,
     find_compose_file,
     generate_dashboard_html,
     get_cached_status,
     refresh_all_health,
-    run_dashboard,
     start_hub,
     stop_hub,
 )
-
 
 # ── Hub Registry — Data Integrity ─────────────────────────────────────────────
 

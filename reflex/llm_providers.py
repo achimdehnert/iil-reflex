@@ -118,7 +118,9 @@ class LiteLLMProvider:
             "google": "GOOGLE_API_KEY",
         }
         env_var = env_map.get(provider, "")
-        if env_var and os.environ.get(env_var):  # hardcoded-ok: dynamic key (runtime variable), decouple.config() requires literal keys
+        if env_var and os.environ.get(
+            env_var
+        ):  # hardcoded-ok: dynamic key (runtime variable), decouple.config() requires literal keys
             return
 
         secrets_dir = os.environ.get(  # hardcoded-ok: CLI package, decouple not a dependency

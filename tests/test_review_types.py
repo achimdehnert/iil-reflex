@@ -90,12 +90,16 @@ class TestReviewResult:
             review_type="repo",
             findings=[
                 Finding(
-                    rule_id="a", severity=ReviewSeverity.WARN,
-                    message="m1", auto_fixable=True,
+                    rule_id="a",
+                    severity=ReviewSeverity.WARN,
+                    message="m1",
+                    auto_fixable=True,
                 ),
                 Finding(
-                    rule_id="b", severity=ReviewSeverity.WARN,
-                    message="m2", auto_fixable=False,
+                    rule_id="b",
+                    severity=ReviewSeverity.WARN,
+                    message="m2",
+                    auto_fixable=False,
                 ),
             ],
         )

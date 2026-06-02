@@ -6,9 +6,7 @@ from reflex.agent import DomainAgent
 class TestDomainAgentResearch:
     """Test autonomous domain research (Zirkel 0, Phase 1-2)."""
 
-    def test_should_research_with_all_providers(
-        self, config, knowledge_provider, document_provider, llm_provider
-    ):
+    def test_should_research_with_all_providers(self, config, knowledge_provider, document_provider, llm_provider):
         agent = DomainAgent(
             config=config,
             llm=llm_provider,
@@ -30,12 +28,8 @@ class TestDomainAgentResearch:
         assert result.topic == "SDS Upload"
         assert len(result.facts) > 0
 
-    def test_should_include_sources_from_providers(
-        self, config, knowledge_provider, llm_provider
-    ):
-        agent = DomainAgent(
-            config=config, llm=llm_provider, knowledge=knowledge_provider
-        )
+    def test_should_include_sources_from_providers(self, config, knowledge_provider, llm_provider):
+        agent = DomainAgent(config=config, llm=llm_provider, knowledge=knowledge_provider)
         result = agent.research("SDS")
 
         assert "outline" in result.sources_used
@@ -51,9 +45,7 @@ class TestDomainAgentResearch:
 class TestDomainAgentInterview:
     """Test expert interview generation (Zirkel 0, Phase 3)."""
 
-    def test_should_generate_questions_for_gaps(
-        self, config, llm_provider
-    ):
+    def test_should_generate_questions_for_gaps(self, config, llm_provider):
         agent = DomainAgent(config=config, llm=llm_provider)
         research = agent.research("SDS")
 

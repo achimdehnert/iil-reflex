@@ -29,6 +29,7 @@ class TestCLICheck:
             "THEN wird das SDS gespeichert und der Status ändert sich zu 'erfasst'\n"
         )
         import sys
+
         sys.argv = ["reflex", "check", str(uc)]
         result = main()
         assert result == 0
@@ -37,12 +38,14 @@ class TestCLICheck:
         uc = tmp_path / "uc-bad.md"
         uc.write_text("Jemand sollte irgendwie etwas machen vielleicht.")
         import sys
+
         sys.argv = ["reflex", "check", str(uc)]
         result = main()
         assert result == 1
 
     def test_should_fail_missing_file(self):
         import sys
+
         sys.argv = ["reflex", "check", "/nonexistent/uc.md"]
         result = main()
         assert result == 1
@@ -53,18 +56,16 @@ class TestCLIInfo:
 
     def test_should_show_config(self, tmp_path):
         config = tmp_path / "reflex.yaml"
-        config.write_text(
-            "hub_name: test-hub\n"
-            "vertical: chemical_safety\n"
-            "domain_keywords:\n  - Explosionsschutz\n"
-        )
+        config.write_text("hub_name: test-hub\nvertical: chemical_safety\ndomain_keywords:\n  - Explosionsschutz\n")
         import sys
+
         sys.argv = ["reflex", "--config", str(config), "info"]
         result = main()
         assert result == 0
 
     def test_should_fail_without_config(self):
         import sys
+
         sys.argv = ["reflex", "info"]
         result = main()
         assert result == 1
@@ -75,8 +76,10 @@ class TestCLIClassify:
 
     def test_should_classify_infra_error(self):
         import sys
+
         sys.argv = [
-            "reflex", "classify",
+            "reflex",
+            "classify",
             "test_should_load_page",
             "TimeoutError: page.goto timeout 30000ms",
         ]

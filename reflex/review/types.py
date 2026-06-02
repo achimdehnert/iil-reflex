@@ -78,9 +78,7 @@ class ReviewResult:
     findings: list[Finding] = field(default_factory=list)
     duration_s: float = 0.0
     triggered_by: str = "manual"
-    timestamp: str = field(
-        default_factory=lambda: datetime.now(UTC).isoformat()
-    )
+    timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
     @property
     def findings_block(self) -> list[Finding]:
@@ -107,7 +105,7 @@ class ReviewResult:
         warn_count = len(self.findings_warn)
         total = len(self.findings)
         # block = 3 points, warn = 1 point, info = 0
-        penalty = (block_count * 3 + warn_count * 1)
+        penalty = block_count * 3 + warn_count * 1
         max_penalty = total * 3
         return max(0.0, round(100.0 * (1 - penalty / max_penalty), 2))
 

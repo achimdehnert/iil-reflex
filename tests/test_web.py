@@ -76,26 +76,29 @@ class TestMockWebProvider:
         assert result.status_code == 404
 
     def test_should_search_by_title(self):
-        provider = MockWebProvider(pages=[
-            WebPage(url="https://a.com", title="Ethanol Safety", text=""),
-            WebPage(url="https://b.com", title="Water Safety", text=""),
-        ])
+        provider = MockWebProvider(
+            pages=[
+                WebPage(url="https://a.com", title="Ethanol Safety", text=""),
+                WebPage(url="https://b.com", title="Water Safety", text=""),
+            ]
+        )
         results = provider.search_web("Ethanol")
         assert len(results) == 1
         assert results[0].title == "Ethanol Safety"
 
     def test_should_search_by_text(self):
-        provider = MockWebProvider(pages=[
-            WebPage(url="https://a.com", title="SDS", text="Contains ethanol data"),
-        ])
+        provider = MockWebProvider(
+            pages=[
+                WebPage(url="https://a.com", title="SDS", text="Contains ethanol data"),
+            ]
+        )
         results = provider.search_web("ethanol")
         assert len(results) == 1
 
     def test_should_limit_results(self):
-        provider = MockWebProvider(pages=[
-            WebPage(url=f"https://{i}.com", title="Match", text="match")
-            for i in range(10)
-        ])
+        provider = MockWebProvider(
+            pages=[WebPage(url=f"https://{i}.com", title="Match", text="match") for i in range(10)]
+        )
         results = provider.search_web("match", limit=3)
         assert len(results) == 3
 
@@ -112,6 +115,7 @@ class TestMockWebProvider:
 class TestHtmlToText:
     def test_should_extract_text_from_html(self):
         from reflex.web import _html_to_text
+
         html = "<html><body><h1>Title</h1><p>Paragraph</p></body></html>"
         text = _html_to_text(html)
         assert "Title" in text
@@ -119,6 +123,7 @@ class TestHtmlToText:
 
     def test_should_strip_nav_and_script(self):
         from reflex.web import _html_to_text
+
         html = "<html><nav>Nav</nav><script>js()</script><p>Content</p></html>"
         text = _html_to_text(html)
         assert "Nav" not in text
@@ -127,6 +132,7 @@ class TestHtmlToText:
 
     def test_should_extract_title(self):
         from reflex.web import _extract_title
+
         html = "<html><head><title>My Page</title></head></html>"
         assert _extract_title(html) == "My Page"
 
@@ -138,34 +144,44 @@ class TestPubChemAdapter:
     def test_should_parse_ghs_view(self):
         from reflex.web import PubChemAdapter
 
-        mock_ghs = json.dumps({
-            "Record": {"Section": [{
-                "Section": [{
-                    "Section": [{
-                        "TOCHeading": "GHS Classification",
-                        "Information": [
-                            {
-                                "Name": "GHS Hazard Statements",
-                                "Value": {
-                                    "StringWithMarkup": [
-                                        {"String": "H225: Highly flammable"},
-                                        {"String": "H319: Eye irritation"},
+        mock_ghs = json.dumps(
+            {
+                "Record": {
+                    "Section": [
+                        {
+                            "Section": [
+                                {
+                                    "Section": [
+                                        {
+                                            "TOCHeading": "GHS Classification",
+                                            "Information": [
+                                                {
+                                                    "Name": "GHS Hazard Statements",
+                                                    "Value": {
+                                                        "StringWithMarkup": [
+                                                            {"String": "H225: Highly flammable"},
+                                                            {"String": "H319: Eye irritation"},
+                                                        ]
+                                                    },
+                                                },
+                                                {
+                                                    "Name": "Signal",
+                                                    "Value": {
+                                                        "StringWithMarkup": [
+                                                            {"String": "Danger"},
+                                                        ]
+                                                    },
+                                                },
+                                            ],
+                                        }
                                     ]
-                                },
-                            },
-                            {
-                                "Name": "Signal",
-                                "Value": {
-                                    "StringWithMarkup": [
-                                        {"String": "Danger"},
-                                    ]
-                                },
-                            },
-                        ],
-                    }]
-                }]
-            }]}
-        })
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        )
         result = PubChemAdapter._parse_ghs_view(mock_ghs)
         assert "H225" in result["h_statements"]
         assert "H319" in result["h_statements"]
@@ -173,12 +189,14 @@ class TestPubChemAdapter:
 
     def test_should_handle_empty_ghs(self):
         from reflex.web import PubChemAdapter
+
         result = PubChemAdapter._parse_ghs_view("{}")
         assert result["h_statements"] == []
         assert result["signal_word"] == ""
 
     def test_should_handle_invalid_json(self):
         from reflex.web import PubChemAdapter
+
         result = PubChemAdapter._parse_ghs_view("not json")
         assert result["h_statements"] == []
 
@@ -190,17 +208,21 @@ class TestGESTISAdapter:
     def test_should_parse_gestis_response(self):
         from reflex.web import GESTISAdapter
 
-        mock_json = json.dumps({
-            "chapters": [{
-                "chapterNr": "1",
-                "sections": [
-                    {"fieldId": "stoffname", "text": "Ethanol"},
-                    {"fieldId": "casnr", "text": "64-17-5"},
-                    {"fieldId": "hstatements", "text": "H225 H319"},
-                    {"fieldId": "signalwort", "text": "Gefahr"},
+        mock_json = json.dumps(
+            {
+                "chapters": [
+                    {
+                        "chapterNr": "1",
+                        "sections": [
+                            {"fieldId": "stoffname", "text": "Ethanol"},
+                            {"fieldId": "casnr", "text": "64-17-5"},
+                            {"fieldId": "hstatements", "text": "H225 H319"},
+                            {"fieldId": "signalwort", "text": "Gefahr"},
+                        ],
+                    }
                 ]
-            }]
-        })
+            }
+        )
         result = GESTISAdapter._parse_gestis(mock_json, "https://gestis.test")
         assert result is not None
         assert result.substance_name == "Ethanol"
@@ -210,6 +232,7 @@ class TestGESTISAdapter:
 
     def test_should_return_none_for_empty_name(self):
         from reflex.web import GESTISAdapter
+
         mock_json = json.dumps({"chapters": [{"chapterNr": "1", "sections": []}]})
         result = GESTISAdapter._parse_gestis(mock_json, "url")
         assert result is None
@@ -221,6 +244,7 @@ class TestGESTISAdapter:
 class TestHttpxWebProviderLifecycle:
     def test_client_is_none_before_first_use(self):
         from reflex.web import HttpxWebProvider
+
         p = HttpxWebProvider()
         assert p._client is None
 
@@ -266,6 +290,7 @@ class TestHttpxWebProviderLifecycle:
 
     def test_close_is_idempotent(self):
         from reflex.web import HttpxWebProvider
+
         p = HttpxWebProvider()
         p.close()
         p.close()
@@ -309,11 +334,13 @@ class TestRetryGet:
 class TestMakeRateLimiter:
     def test_returns_callable(self):
         from reflex.web import _make_rate_limiter
+
         limiter = _make_rate_limiter(5.0)
         assert callable(limiter)
 
     def test_callable_executes_without_error(self):
         from reflex.web import _make_rate_limiter
+
         limiter = _make_rate_limiter(100.0)
         limiter()
 
@@ -327,14 +354,15 @@ class TestMakeRateLimiter:
     def test_sub_one_rate(self):
         """0.5 req/s (1 per 2s) must work without truncation to 0."""
         from reflex.web import _make_rate_limiter
+
         limiter = _make_rate_limiter(0.5)
         assert callable(limiter)
 
     def test_interval_ms_formula(self):
         """Verify internal interval calculation for known rates."""
         cases = {
-            5.0: 200,   # 1000/5 = 200ms
-            2.5: 400,   # 1000/2.5 = 400ms
+            5.0: 200,  # 1000/5 = 200ms
+            2.5: 400,  # 1000/2.5 = 400ms
             0.5: 2000,  # 1000/0.5 = 2000ms
             1.0: 1000,  # 1000/1.0 = 1000ms
         }
@@ -348,11 +376,13 @@ class TestMakeRateLimiter:
 class TestAdapterRateLimiter:
     def test_pubchem_adapter_has_limiter(self):
         from reflex.web import PubChemAdapter
+
         adapter = PubChemAdapter()
         assert callable(adapter._limiter)
 
     def test_gestis_adapter_has_limiter(self):
         from reflex.web import GESTISAdapter
+
         adapter = GESTISAdapter()
         assert callable(adapter._limiter)
 
@@ -363,11 +393,13 @@ class TestAdapterRateLimiter:
 class TestHttpxWebProviderCaching:
     def test_cache_true_by_default(self):
         from reflex.web import HttpxWebProvider
+
         p = HttpxWebProvider()
         assert p.cache is True
 
     def test_cache_false_disables_hishel(self):
         import respx
+
         from reflex.web import HttpxWebProvider
 
         with respx.mock:
@@ -381,6 +413,7 @@ class TestHttpxWebProviderCaching:
     def test_cache_true_uses_hishel_transport_when_available(self):
         """When hishel is installed, transport must be a CacheTransport."""
         import respx
+
         from reflex.web import HttpxWebProvider
 
         try:
@@ -400,6 +433,7 @@ class TestHttpxWebProviderCaching:
         """cache=False must never install a CacheTransport."""
         import httpx
         import respx
+
         from reflex.web import HttpxWebProvider
 
         with respx.mock:
