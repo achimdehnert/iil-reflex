@@ -11,77 +11,81 @@ from reflex.uc_dialog import UCDialogEngine, UCDialogState
 
 @pytest.fixture
 def config() -> ReflexConfig:
-    return ReflexConfig.from_dict({
-        "hub_name": "test-hub",
-        "vertical": "chemical_safety",
-        "domain_keywords": ["SDS", "CAS", "GHS"],
-        "quality": {
-            "min_acceptance_criteria": 2,
-            "max_uc_steps": 7,
-        },
-    })
+    return ReflexConfig.from_dict(
+        {
+            "hub_name": "test-hub",
+            "vertical": "chemical_safety",
+            "domain_keywords": ["SDS", "CAS", "GHS"],
+            "quality": {
+                "min_acceptance_criteria": 2,
+                "max_uc_steps": 7,
+            },
+        }
+    )
 
 
 @pytest.fixture
 def llm() -> MockLLMProvider:
-    return MockLLMProvider({
-        "reflex.uc-dialog-generate": (
-            "## Akteur\n\n"
-            "Der Sicherheitsingenieur\n\n"
-            "## Ziel\n\n"
-            "Der Sicherheitsingenieur möchte ein SDS hochladen, damit die Gefahrstoffe "
-            "korrekt erfasst werden.\n\n"
-            "## Vorbedingung\n\n"
-            "- Der Benutzer ist eingeloggt\n"
-            "- Der Benutzer hat die Rolle Sicherheitsingenieur\n\n"
-            "## Scope\n\n"
-            "Nur SDS-Upload und Validierung. Nicht Teil: GHS-Einstufung, Export.\n\n"
-            "## Schritte\n\n"
-            "1. Der Sicherheitsingenieur navigiert zum SDS-Upload\n"
-            "2. Der Sicherheitsingenieur wählt eine PDF-Datei aus\n"
-            "3. Das System validiert das SDS-Format\n"
-            "4. Das System extrahiert CAS-Nummer und H-Sätze\n"
-            "5. Das System zeigt die extrahierten Daten an\n\n"
-            "## Fehlerfälle\n\n"
-            "- Falls die Datei kein PDF ist, erscheint die Meldung 'Nur PDF-Dateien erlaubt'\n"
-            "- Falls die CAS-Nummer ungültig ist, wird eine Warnung angezeigt\n\n"
-            "## Akzeptanzkriterien\n\n"
-            "GIVEN ein eingeloggter Sicherheitsingenieur\n"
-            "WHEN er ein gültiges SDS-PDF hochlädt\n"
-            "THEN werden CAS-Nummer und H-Sätze extrahiert und angezeigt\n\n"
-            "GIVEN ein ungültiges Dateiformat\n"
-            "WHEN der Upload gestartet wird\n"
-            "THEN erscheint eine Fehlermeldung\n"
-        ),
-        "reflex.uc-dialog-refine": (
-            "## Akteur\n\n"
-            "Der Sicherheitsingenieur\n\n"
-            "## Ziel\n\n"
-            "Der Sicherheitsingenieur möchte ein SDS hochladen, damit die Gefahrstoffe "
-            "korrekt erfasst werden.\n\n"
-            "## Vorbedingung\n\n"
-            "- Der Benutzer ist eingeloggt\n"
-            "- Der Benutzer hat die Rolle Sicherheitsingenieur\n\n"
-            "## Scope\n\n"
-            "Nur SDS-Upload und Validierung. Nicht Teil: GHS-Einstufung, Export.\n\n"
-            "## Schritte\n\n"
-            "1. Der Sicherheitsingenieur navigiert zum SDS-Upload\n"
-            "2. Der Sicherheitsingenieur wählt eine PDF-Datei aus\n"
-            "3. Das System validiert das SDS-Format\n"
-            "4. Das System extrahiert CAS-Nummer und H-Sätze\n"
-            "5. Das System zeigt die extrahierten Daten an\n\n"
-            "## Fehlerfälle\n\n"
-            "- Falls die Datei kein PDF ist, erscheint die Meldung 'Nur PDF-Dateien erlaubt'\n"
-            "- Falls die CAS-Nummer ungültig ist, wird eine Warnung angezeigt\n\n"
-            "## Akzeptanzkriterien\n\n"
-            "GIVEN ein eingeloggter Sicherheitsingenieur\n"
-            "WHEN er ein gültiges SDS-PDF hochlädt\n"
-            "THEN werden CAS-Nummer und H-Sätze extrahiert und angezeigt\n\n"
-            "GIVEN ein ungültiges Dateiformat\n"
-            "WHEN der Upload gestartet wird\n"
-            "THEN erscheint eine Fehlermeldung\n"
-        ),
-    })
+    return MockLLMProvider(
+        {
+            "reflex.uc-dialog-generate": (
+                "## Akteur\n\n"
+                "Der Sicherheitsingenieur\n\n"
+                "## Ziel\n\n"
+                "Der Sicherheitsingenieur möchte ein SDS hochladen, damit die Gefahrstoffe "
+                "korrekt erfasst werden.\n\n"
+                "## Vorbedingung\n\n"
+                "- Der Benutzer ist eingeloggt\n"
+                "- Der Benutzer hat die Rolle Sicherheitsingenieur\n\n"
+                "## Scope\n\n"
+                "Nur SDS-Upload und Validierung. Nicht Teil: GHS-Einstufung, Export.\n\n"
+                "## Schritte\n\n"
+                "1. Der Sicherheitsingenieur navigiert zum SDS-Upload\n"
+                "2. Der Sicherheitsingenieur wählt eine PDF-Datei aus\n"
+                "3. Das System validiert das SDS-Format\n"
+                "4. Das System extrahiert CAS-Nummer und H-Sätze\n"
+                "5. Das System zeigt die extrahierten Daten an\n\n"
+                "## Fehlerfälle\n\n"
+                "- Falls die Datei kein PDF ist, erscheint die Meldung 'Nur PDF-Dateien erlaubt'\n"
+                "- Falls die CAS-Nummer ungültig ist, wird eine Warnung angezeigt\n\n"
+                "## Akzeptanzkriterien\n\n"
+                "GIVEN ein eingeloggter Sicherheitsingenieur\n"
+                "WHEN er ein gültiges SDS-PDF hochlädt\n"
+                "THEN werden CAS-Nummer und H-Sätze extrahiert und angezeigt\n\n"
+                "GIVEN ein ungültiges Dateiformat\n"
+                "WHEN der Upload gestartet wird\n"
+                "THEN erscheint eine Fehlermeldung\n"
+            ),
+            "reflex.uc-dialog-refine": (
+                "## Akteur\n\n"
+                "Der Sicherheitsingenieur\n\n"
+                "## Ziel\n\n"
+                "Der Sicherheitsingenieur möchte ein SDS hochladen, damit die Gefahrstoffe "
+                "korrekt erfasst werden.\n\n"
+                "## Vorbedingung\n\n"
+                "- Der Benutzer ist eingeloggt\n"
+                "- Der Benutzer hat die Rolle Sicherheitsingenieur\n\n"
+                "## Scope\n\n"
+                "Nur SDS-Upload und Validierung. Nicht Teil: GHS-Einstufung, Export.\n\n"
+                "## Schritte\n\n"
+                "1. Der Sicherheitsingenieur navigiert zum SDS-Upload\n"
+                "2. Der Sicherheitsingenieur wählt eine PDF-Datei aus\n"
+                "3. Das System validiert das SDS-Format\n"
+                "4. Das System extrahiert CAS-Nummer und H-Sätze\n"
+                "5. Das System zeigt die extrahierten Daten an\n\n"
+                "## Fehlerfälle\n\n"
+                "- Falls die Datei kein PDF ist, erscheint die Meldung 'Nur PDF-Dateien erlaubt'\n"
+                "- Falls die CAS-Nummer ungültig ist, wird eine Warnung angezeigt\n\n"
+                "## Akzeptanzkriterien\n\n"
+                "GIVEN ein eingeloggter Sicherheitsingenieur\n"
+                "WHEN er ein gültiges SDS-PDF hochlädt\n"
+                "THEN werden CAS-Nummer und H-Sätze extrahiert und angezeigt\n\n"
+                "GIVEN ein ungültiges Dateiformat\n"
+                "WHEN der Upload gestartet wird\n"
+                "THEN erscheint eine Fehlermeldung\n"
+            ),
+        }
+    )
 
 
 class TestUCDialogEngineInit:
@@ -152,9 +156,8 @@ class TestUCDialogQuestions:
         state.quality_result._replace_passed = True  # noqa
         # Create a new quality result that's "passed"
         from reflex.types import UCQualityResult
-        state.quality_result = UCQualityResult(
-            uc_slug="test", passed=True, criteria=[], overall_score=1.0
-        )
+
+        state.quality_result = UCQualityResult(uc_slug="test", passed=True, criteria=[], overall_score=1.0)
 
         questions = engine.get_questions(state)
         assert questions == []
@@ -170,11 +173,13 @@ class TestUCDialogRefine:
         if state.is_complete:
             # Template already passed — force a failed state for testing
             from reflex.types import QualityCriterion, UCQualityResult
+
             state.quality_result = UCQualityResult(
-                uc_slug="test", passed=False, criteria=[
-                    QualityCriterion(name="C-01: Spezifischer Akteur",
-                                     description="test", passed=False),
-                ]
+                uc_slug="test",
+                passed=False,
+                criteria=[
+                    QualityCriterion(name="C-01: Spezifischer Akteur", description="test", passed=False),
+                ],
             )
 
         initial_iteration = state.iteration
@@ -189,11 +194,13 @@ class TestUCDialogRefine:
 
         if state.is_complete:
             from reflex.types import QualityCriterion, UCQualityResult
+
             state.quality_result = UCQualityResult(
-                uc_slug="test", passed=False, criteria=[
-                    QualityCriterion(name="C-01: Spezifischer Akteur",
-                                     description="test", passed=False),
-                ]
+                uc_slug="test",
+                passed=False,
+                criteria=[
+                    QualityCriterion(name="C-01: Spezifischer Akteur", description="test", passed=False),
+                ],
             )
 
         state = engine.refine(state, {"C-01": "Der Gefahrstoffbeauftragte"})
@@ -205,11 +212,13 @@ class TestUCDialogRefine:
 
         if state.is_complete:
             from reflex.types import QualityCriterion, UCQualityResult
+
             state.quality_result = UCQualityResult(
-                uc_slug="test", passed=False, criteria=[
-                    QualityCriterion(name="C-01: Spezifischer Akteur",
-                                     description="test", passed=False),
-                ]
+                uc_slug="test",
+                passed=False,
+                criteria=[
+                    QualityCriterion(name="C-01: Spezifischer Akteur", description="test", passed=False),
+                ],
             )
 
         state = engine.refine(state, {"C-01": "Test"})
@@ -222,12 +231,11 @@ class TestUCDialogState:
 
     def test_should_track_completion(self):
         from reflex.types import UCQualityResult
+
         state = UCDialogState(topic="test")
         assert not state.is_complete
 
-        state.quality_result = UCQualityResult(
-            uc_slug="test", passed=True, criteria=[]
-        )
+        state.quality_result = UCQualityResult(uc_slug="test", passed=True, criteria=[])
         assert state.is_complete
 
     def test_should_track_iteration_limit(self):

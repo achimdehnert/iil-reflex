@@ -188,6 +188,7 @@ class HttpxWebProvider:
                     if self.cache:
                         try:
                             import hishel
+
                             transport = hishel.CacheTransport(
                                 transport=httpx.HTTPTransport(),
                                 storage=hishel.FileStorage(),
@@ -600,8 +601,7 @@ class PDFDocumentProvider:
             from ingest.extractors.pdf import PDFExtractor
         except ImportError as exc:
             raise ImportError(
-                "iil-ingest[pdf] is required for PDF reading. Install with: "
-                "pip install iil-reflex[web]"
+                "iil-ingest[pdf] is required for PDF reading. Install with: pip install iil-reflex[web]"
             ) from exc
 
         with open(path, "rb") as fh:

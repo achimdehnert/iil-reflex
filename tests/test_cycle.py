@@ -13,7 +13,6 @@ from reflex.cycle import (
     PhaseStatus,
 )
 
-
 SAMPLE_YAML = """\
 hub_name: test-hub
 vertical: chemical_safety

@@ -82,9 +82,9 @@ class TestSuppression:
         supp_file = supp_dir / "suppressions.yaml"
         supp_file.write_text(
             "suppressions:\n"
-            '  - rule_id: compose.no_logging_config\n'
+            "  - rule_id: compose.no_logging_config\n"
             '    reason: "Logging via Loki geplant"\n'
-            '    permanent: true\n',
+            "    permanent: true\n",
             encoding="utf-8",
         )
 
@@ -109,10 +109,7 @@ class TestEngineFiltering:
         supp_dir.mkdir()
         supp_file = supp_dir / "suppressions.yaml"
         supp_file.write_text(
-            "suppressions:\n"
-            '  - rule_id: repo.missing_readme\n'
-            '    reason: "Intentional"\n'
-            '    permanent: true\n',
+            'suppressions:\n  - rule_id: repo.missing_readme\n    reason: "Intentional"\n    permanent: true\n',
             encoding="utf-8",
         )
 
@@ -136,7 +133,8 @@ class TestEngineFiltering:
                 Finding(rule_id="repo.missing_readme", severity=ReviewSeverity.BLOCK, message="m"),
                 Finding(
                     rule_id="repo.missing_gitignore",
-                    severity=ReviewSeverity.BLOCK, message="m",
+                    severity=ReviewSeverity.BLOCK,
+                    message="m",
                 ),
             ],
         )

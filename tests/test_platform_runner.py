@@ -6,7 +6,6 @@ import pytest
 import yaml
 
 from reflex.platform_runner import (
-    HubEntry,
     HubReport,
     PlatformReport,
     PlatformRunner,
@@ -30,8 +29,10 @@ class TestHubReport:
 
     def test_should_show_warning_icon_for_partial_routes(self):
         hr = HubReport(
-            name="test", tier=1,
-            routes_total=5, routes_ok=3,
+            name="test",
+            tier=1,
+            routes_total=5,
+            routes_ok=3,
             health_ok=True,
         )
         assert hr.status_icon == "⚠️"
@@ -45,19 +46,23 @@ class TestPlatformReport:
     """Test PlatformReport aggregations."""
 
     def test_should_count_tiers(self):
-        report = PlatformReport(hubs=[
-            HubReport(name="a", tier=1, health_ok=True),
-            HubReport(name="b", tier=1, health_ok=True),
-            HubReport(name="c", tier=2, health_ok=True),
-        ])
+        report = PlatformReport(
+            hubs=[
+                HubReport(name="a", tier=1, health_ok=True),
+                HubReport(name="b", tier=1, health_ok=True),
+                HubReport(name="c", tier=2, health_ok=True),
+            ]
+        )
         assert len(report.tier1_hubs) == 2
         assert len(report.tier2_hubs) == 1
 
     def test_should_count_healthy_hubs(self):
-        report = PlatformReport(hubs=[
-            HubReport(name="a", tier=1, health_ok=True),
-            HubReport(name="b", tier=2, health_ok=False, error="down"),
-        ])
+        report = PlatformReport(
+            hubs=[
+                HubReport(name="a", tier=1, health_ok=True),
+                HubReport(name="b", tier=2, health_ok=False, error="down"),
+            ]
+        )
         assert report.healthy_hubs == 1
         assert report.total_hubs == 2
 
@@ -107,21 +112,27 @@ class TestPlatformRunnerOutput:
             total_duration_seconds=5.2,
             hubs=[
                 HubReport(
-                    name="risk-hub", tier=1,
+                    name="risk-hub",
+                    tier=1,
                     health_ok=True,
-                    routes_total=5, routes_ok=5,
-                    permissions_total=10, permissions_ok=10,
+                    routes_total=5,
+                    routes_ok=5,
+                    permissions_total=10,
+                    permissions_ok=10,
                     uc_count=4,
                     duration_seconds=1.2,
                 ),
                 HubReport(
-                    name="billing-hub", tier=2,
+                    name="billing-hub",
+                    tier=2,
                     health_ok=True,
-                    routes_total=3, routes_ok=3,
+                    routes_total=3,
+                    routes_ok=3,
                     duration_seconds=0.8,
                 ),
                 HubReport(
-                    name="broken-hub", tier=2,
+                    name="broken-hub",
+                    tier=2,
                     health_ok=False,
                     error="Connection refused",
                     duration_seconds=0.1,
@@ -131,6 +142,7 @@ class TestPlatformRunnerOutput:
 
     def test_should_produce_json(self, sample_report: PlatformReport):
         import json
+
         output = PlatformRunner.to_json(sample_report)
         data = json.loads(output)
         assert data["total_hubs"] == 3
