@@ -19,14 +19,12 @@ def ports_yaml_content():
 services:
   risk-hub:
     port: 8090
-    container: risk_hub_web
+    container_name: risk_hub_web
     db: risk_hub_db
-    description: Gefahrstoffmanagement
   travel-beat:
     port: 8001
-    container: travel_beat_web
+    container_name: travel_beat_web
     db: travel_beat_db
-    description: Reiseplanung
 """
 
 
@@ -45,21 +43,17 @@ class TestGetServiceInfo:
 
     def test_should_return_none_for_unknown_repo(self, mock_ports_yaml):
         with patch("reflex.infra._find_ports_yaml", return_value=mock_ports_yaml):
-            info = get_service_info("nonexistent-repo")
+            info = get_service_info("nonexistent-repo", Path("/repos"))
         assert info is None
 
     def test_should_return_service_info(self, mock_ports_yaml):
         with patch("reflex.infra._find_ports_yaml", return_value=mock_ports_yaml):
-            info = get_service_info("risk-hub")
+            info = get_service_info("risk-hub", Path("/repos"))
         assert info is not None
-        assert info["port"] == 8090
+        # Result schema: per-environment ports (port_prod falls back to `port`),
+        # container from `container_name`.
+        assert info["port_prod"] == 8090
         assert info["container"] == "risk_hub_web"
-
-    def test_should_include_description(self, mock_ports_yaml):
-        with patch("reflex.infra._find_ports_yaml", return_value=mock_ports_yaml):
-            info = get_service_info("travel-beat")
-        assert info is not None
-        assert info["description"] == "Reiseplanung"
 
 
 class TestFormatInfoCard:
@@ -67,12 +61,8 @@ class TestFormatInfoCard:
 
     def test_should_format_service_info(self, mock_ports_yaml):
         with patch("reflex.infra._find_ports_yaml", return_value=mock_ports_yaml):
-            info = get_service_info("risk-hub")
+            info = get_service_info("risk-hub", Path("/repos"))
         assert info is not None
-        card = format_info_card("risk-hub", info)
+        card = format_info_card(info)  # single-arg: name is taken from info["name"]
         assert "risk-hub" in card
         assert "8090" in card
-
-    def test_should_handle_none_info(self):
-        card = format_info_card("unknown", None)
-        assert "unknown" in card or card == ""

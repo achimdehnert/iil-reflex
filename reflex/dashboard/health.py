@@ -149,8 +149,12 @@ def stop_hub(slug: str, github_dir: str) -> dict[str, Any]:
 
 _review_cache: dict[str, dict] = {}
 _review_lock = threading.Lock()
-GRAFANA_URL = os.environ.get("REFLEX_GRAFANA_URL", "http://localhost:3000")  # hardcoded-ok: CLI package, decouple not a dependency
-OUTLINE_URL = os.environ.get("REFLEX_OUTLINE_URL", "https://knowledge.iil.pet")  # hardcoded-ok: CLI package, decouple not a dependency
+GRAFANA_URL = os.environ.get(
+    "REFLEX_GRAFANA_URL", "http://localhost:3000"
+)  # hardcoded-ok: CLI package, decouple not a dependency
+OUTLINE_URL = os.environ.get(
+    "REFLEX_OUTLINE_URL", "https://knowledge.iil.pet"
+)  # hardcoded-ok: CLI package, decouple not a dependency
 
 
 def refresh_all_reviews(github_dir: str) -> dict[str, dict]:

@@ -84,7 +84,7 @@ class TestAifwProvider:
     def test_should_log_calls(self, mock_complete):
         mock_complete.return_value = "response"
         p = AifwProvider()
-        result = p.complete(
+        p.complete(
             [{"role": "user", "content": "test"}],
             action_code="reflex.domain-research",
         )

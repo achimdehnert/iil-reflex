@@ -1,6 +1,5 @@
 """Tests for ReflexConfig — YAML loading and defaults."""
 
-
 import pytest
 
 from reflex.config import ReflexConfig
@@ -16,49 +15,57 @@ class TestConfigFromDict:
         assert config.quality.max_uc_steps == 7
 
     def test_should_apply_custom_quality(self):
-        config = ReflexConfig.from_dict({
-            "hub_name": "risk-hub",
-            "vertical": "chemical_safety",
-            "quality": {"max_uc_steps": 5, "min_acceptance_criteria": 3},
-        })
+        config = ReflexConfig.from_dict(
+            {
+                "hub_name": "risk-hub",
+                "vertical": "chemical_safety",
+                "quality": {"max_uc_steps": 5, "min_acceptance_criteria": 3},
+            }
+        )
 
         assert config.quality.max_uc_steps == 5
         assert config.quality.min_acceptance_criteria == 3
 
     def test_should_parse_viewports(self):
-        config = ReflexConfig.from_dict({
-            "hub_name": "test",
-            "vertical": "general",
-            "viewports": [
-                {"name": "mobile", "width": 375, "height": 812},
-            ],
-        })
+        config = ReflexConfig.from_dict(
+            {
+                "hub_name": "test",
+                "vertical": "general",
+                "viewports": [
+                    {"name": "mobile", "width": 375, "height": 812},
+                ],
+            }
+        )
 
         assert len(config.viewports) == 1
         assert config.viewports[0].name == "mobile"
         assert config.viewports[0].width == 375
 
     def test_should_parse_htmx_rules(self):
-        config = ReflexConfig.from_dict({
-            "hub_name": "test",
-            "vertical": "general",
-            "htmx_patterns": {
-                "banned": ["hx-boost", "hx-push-url"],
-                "required_on_forms": ["hx-indicator"],
-            },
-        })
+        config = ReflexConfig.from_dict(
+            {
+                "hub_name": "test",
+                "vertical": "general",
+                "htmx_patterns": {
+                    "banned": ["hx-boost", "hx-push-url"],
+                    "required_on_forms": ["hx-indicator"],
+                },
+            }
+        )
 
         assert "hx-boost" in config.htmx_patterns.banned
         assert "hx-push-url" in config.htmx_patterns.banned
 
     def test_should_parse_permissions_matrix(self):
-        config = ReflexConfig.from_dict({
-            "hub_name": "test",
-            "vertical": "general",
-            "permissions_matrix": {
-                "/substances/": {"anonymous": 302, "viewer": 200},
-            },
-        })
+        config = ReflexConfig.from_dict(
+            {
+                "hub_name": "test",
+                "vertical": "general",
+                "permissions_matrix": {
+                    "/substances/": {"anonymous": 302, "viewer": 200},
+                },
+            }
+        )
 
         assert config.permissions_matrix["/substances/"]["anonymous"] == 302
 

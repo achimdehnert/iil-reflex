@@ -2,6 +2,11 @@
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.metadata]
+# web-Extra hat eine direkte Git-Referenz (iil-ingest, nicht auf PyPI) — hatchling
+# verlangt dafür ein explizites Opt-in, sonst schlägt die Metadata-Generierung fehl.
+allow-direct-references = true
+
 [project]
 name = "iil-reflex"
 version = "0.5.0"

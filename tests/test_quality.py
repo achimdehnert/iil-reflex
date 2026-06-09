@@ -57,9 +57,7 @@ class TestUCQualityChecker:
     def test_should_detect_vague_actor(self, checker):
         result = checker.check("Jemand lädt eine Datei hoch.", uc_slug="vague")
 
-        actor_criterion = next(
-            c for c in result.criteria if "Akteur" in c.name
-        )
+        actor_criterion = next(c for c in result.criteria if "Akteur" in c.name)
         assert not actor_criterion.passed
 
     def test_should_detect_soft_language(self, checker):
@@ -68,21 +66,16 @@ class TestUCQualityChecker:
             uc_slug="soft",
         )
 
-        soft_criterion = next(
-            c for c in result.criteria if "weiche" in c.name
-        )
+        soft_criterion = next(c for c in result.criteria if "weiche" in c.name)
         assert not soft_criterion.passed
 
     def test_should_detect_implementation_details(self, checker):
         result = checker.check(
-            "Als Admin: 1. Klickt auf Button. "
-            "System erstellt Django QuerySet und führt Migration aus.",
+            "Als Admin: 1. Klickt auf Button. System erstellt Django QuerySet und führt Migration aus.",
             uc_slug="impl",
         )
 
-        impl_criterion = next(
-            c for c in result.criteria if "Implementierung" in c.name
-        )
+        impl_criterion = next(c for c in result.criteria if "Implementierung" in c.name)
         assert not impl_criterion.passed
 
     def test_should_detect_missing_error_cases(self, checker):
@@ -91,18 +84,14 @@ class TestUCQualityChecker:
             uc_slug="no-errors",
         )
 
-        error_criterion = next(
-            c for c in result.criteria if "Fehler" in c.name
-        )
+        error_criterion = next(c for c in result.criteria if "Fehler" in c.name)
         assert not error_criterion.passed
 
     def test_should_detect_too_many_steps(self, checker):
         steps = "\n".join(f"{i}. Schritt {i}" for i in range(1, 12))
         result = checker.check(f"Akteur: Admin\n{steps}", uc_slug="many-steps")
 
-        step_criterion = next(
-            c for c in result.criteria if "Schritte" in c.name and "Max" in c.name
-        )
+        step_criterion = next(c for c in result.criteria if "Schritte" in c.name and "Max" in c.name)
         assert not step_criterion.passed
 
     def test_should_track_iteration(self, checker):
@@ -111,9 +100,7 @@ class TestUCQualityChecker:
 
     def test_should_count_acceptance_criteria(self, checker):
         result = checker.check(GOOD_UC, uc_slug="ak-count")
-        ak_criterion = next(
-            c for c in result.criteria if "Akzeptanzkriterien" in c.name
-        )
+        ak_criterion = next(c for c in result.criteria if "Akzeptanzkriterien" in c.name)
         assert ak_criterion.passed
 
     def test_should_not_flag_einer_as_vague_article(self, checker):

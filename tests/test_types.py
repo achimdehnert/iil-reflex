@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from reflex.types import (
     ClassifyResult,
     DomainResearchResult,
@@ -43,8 +41,7 @@ class TestUCQualityResult:
 
     def test_should_calculate_score_percent_all_passed(self):
         criteria = [
-            QualityCriterion(name=f"C-{i:02d}", description=f"test-{i}", passed=True, evidence="OK")
-            for i in range(11)
+            QualityCriterion(name=f"C-{i:02d}", description=f"test-{i}", passed=True, evidence="OK") for i in range(11)
         ]
         result = UCQualityResult(uc_slug="UC-001", criteria=criteria, overall_score=11, passed=True)
         assert result.score_percent == 100

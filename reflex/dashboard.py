@@ -15,12 +15,11 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import subprocess
 import threading
 import time
-from dataclasses import asdict, dataclass, field
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from dataclasses import asdict, dataclass
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Any
 from urllib.error import URLError
@@ -377,6 +376,7 @@ def get_cached_status() -> dict[str, HubStatus]:
 
 # ── Docker Compose Control ────────────────────────────────────────────────────
 
+
 def start_hub(slug: str, github_dir: str) -> dict[str, Any]:
     """Start a hub via docker compose up -d."""
     repo_path = Path(github_dir) / slug
@@ -433,6 +433,7 @@ def stop_hub(slug: str, github_dir: str) -> dict[str, Any]:
 
 # ── HTTP Handler ──────────────────────────────────────────────────────────────
 
+
 class DashboardHandler(BaseHTTPRequestHandler):
     """HTTP handler for the local dashboard."""
 
@@ -475,17 +476,13 @@ class DashboardHandler(BaseHTTPRequestHandler):
         result = start_hub(slug, self.github_dir)
         # Refresh health after start
         if result.get("ok"):
-            threading.Thread(
-                target=refresh_all_health, args=(self.github_dir,), daemon=True
-            ).start()
+            threading.Thread(target=refresh_all_health, args=(self.github_dir,), daemon=True).start()
         self._json_response(result)
 
     def _handle_stop(self, slug: str):
         result = stop_hub(slug, self.github_dir)
         if result.get("ok"):
-            threading.Thread(
-                target=refresh_all_health, args=(self.github_dir,), daemon=True
-            ).start()
+            threading.Thread(target=refresh_all_health, args=(self.github_dir,), daemon=True).start()
         self._json_response(result)
 
     def _handle_refresh(self):
@@ -505,34 +502,33 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
 # ── HTML Generator ────────────────────────────────────────────────────────────
 
+
 def generate_dashboard_html() -> str:
     """Generate the full dashboard HTML with embedded CSS/JS."""
     hub_cards = ""
     for hub in sorted(HUBS, key=lambda h: h.get("sort_order", 100)):
-        tags_html = "".join(
-            f'<span class="tag bg-{hub["color"]}">{t}</span>' for t in hub.get("tags", [])
-        )
+        tags_html = "".join(f'<span class="tag bg-{hub["color"]}">{t}</span>' for t in hub.get("tags", []))
         hub_cards += f"""
-        <div class="card" data-slug="{hub['slug']}" data-port="{hub.get('port', 0)}"
-             data-category="{hub.get('category', 'product')}"
-             data-name="{hub['name'].lower()}"
-             data-tags="{','.join(hub.get('tags', [])).lower()}">
+        <div class="card" data-slug="{hub["slug"]}" data-port="{hub.get("port", 0)}"
+             data-category="{hub.get("category", "product")}"
+             data-name="{hub["name"].lower()}"
+             data-tags="{",".join(hub.get("tags", [])).lower()}">
             <div class="card-header">
-                <div class="icon bg-{hub['color']}">{hub['icon']}</div>
+                <div class="icon bg-{hub["color"]}">{hub["icon"]}</div>
                 <div class="card-title">
-                    <h2>{hub['name']}</h2>
-                    <span class="health-dot" id="dot-{hub['slug']}" title="Checking..."></span>
+                    <h2>{hub["name"]}</h2>
+                    <span class="health-dot" id="dot-{hub["slug"]}" title="Checking..."></span>
                 </div>
             </div>
-            <p class="desc">{hub['description']}</p>
+            <p class="desc">{hub["description"]}</p>
             <div class="tags">{tags_html}</div>
             <div class="card-links">
-                <a href="http://localhost:{hub.get('port', '#')}" class="link-app"
-                   target="_blank" id="link-{hub['slug']}">&#9654; App</a>
-                <a href="http://localhost:{hub.get('port', '#')}/admin/"
+                <a href="http://localhost:{hub.get("port", "#")}" class="link-app"
+                   target="_blank" id="link-{hub["slug"]}">&#9654; App</a>
+                <a href="http://localhost:{hub.get("port", "#")}/admin/"
                    class="link-admin" target="_blank">&#9881; Admin</a>
-                <button class="btn-start" id="btn-{hub['slug']}"
-                        onclick="toggleHub('{hub['slug']}')"
+                <button class="btn-start" id="btn-{hub["slug"]}"
+                        onclick="toggleHub('{hub["slug"]}')"
                         title="Start/Stop via Docker Compose">&#9654; Start</button>
             </div>
         </div>"""
@@ -867,6 +863,7 @@ setInterval(fetchStatus, 30000);
 
 # ── Server Entry Point ────────────────────────────────────────────────────────
 
+
 def run_dashboard(
     port: int = 9000,
     github_dir: str = "",
@@ -877,18 +874,16 @@ def run_dashboard(
 
     DashboardHandler.github_dir = github_dir
 
-    print(f"\n  REFLEX Dashboard — Local Development")
+    print("\n  REFLEX Dashboard — Local Development")
     print(f"  {'─' * 45}")
     print(f"  GitHub Dir: {github_dir}")
     print(f"  Hubs:       {len(HUBS)}")
     print(f"  URL:        http://localhost:{port}")
     print(f"  {'─' * 45}")
-    print(f"  Press Ctrl+C to stop.\n")
+    print("  Press Ctrl+C to stop.\n")
 
     # Initial health check in background
-    threading.Thread(
-        target=refresh_all_health, args=(github_dir,), daemon=True
-    ).start()
+    threading.Thread(target=refresh_all_health, args=(github_dir,), daemon=True).start()
 
     server = HTTPServer(("0.0.0.0", port), DashboardHandler)
     try:

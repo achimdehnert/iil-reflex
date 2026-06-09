@@ -94,9 +94,7 @@ def _save_baseline(repo_path: Path, findings: list[Finding]) -> Path:
         "created_at": datetime.now(UTC).isoformat(),
         "findings": [f.to_dict() for f in findings],
     }
-    baseline_file.write_text(
-        json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
+    baseline_file.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
     return baseline_file
 
 
@@ -175,11 +173,7 @@ class ReviewEngine:
 
         # Determine which plugins to run
         plugin_names = types or list(self._plugins.keys())
-        plugins_to_run = [
-            self._plugins[name]
-            for name in plugin_names
-            if name in self._plugins
-        ]
+        plugins_to_run = [self._plugins[name] for name in plugin_names if name in self._plugins]
 
         if not plugins_to_run:
             logger.warning("No matching plugins found for types=%s", types)
@@ -187,11 +181,7 @@ class ReviewEngine:
 
         # Load suppressions and baseline
         suppressions = _load_suppressions(repo_path)
-        suppressed_ids = {
-            s.rule_id
-            for s in suppressions
-            if s.permanent or (s.until and not s.is_expired)
-        }
+        suppressed_ids = {s.rule_id for s in suppressions if s.permanent or (s.until and not s.is_expired)}
         baseline_ids = _load_baseline(repo_path) if not init_baseline else set()
 
         results: list[ReviewResult] = []
@@ -205,9 +195,7 @@ class ReviewEngine:
             duration = round(time.monotonic() - start, 3)
 
             # Filter: suppressions
-            findings = [
-                f for f in raw_findings if f.rule_id not in suppressed_ids
-            ]
+            findings = [f for f in raw_findings if f.rule_id not in suppressed_ids]
 
             # Filter: baseline (unless include_baseline or init_baseline)
             if not include_baseline and not init_baseline and baseline_ids:

@@ -8,8 +8,10 @@ import pytest
 
 from reflex.review.plugins.adr_plugin import ADRPlugin
 from reflex.review.plugins.compose_plugin import ComposePlugin
+from reflex.review.plugins.infra_plugin import InfraPlugin
 from reflex.review.plugins.port_plugin import PortPlugin
 from reflex.review.plugins.repo_plugin import RepoPlugin
+from reflex.review.plugins.security_plugin import SecurityPlugin
 from reflex.review.types import ReviewSeverity
 
 # ── Fixtures ─────────────────────────────────────────────────────────────────
@@ -40,9 +42,7 @@ def minimal_repo(tmp_path: Path) -> Path:
     )
     (repo / ".env.prod.example").write_text("SECRET_KEY=changeme\n")
     (repo / "docker" / "app").mkdir(parents=True)
-    (repo / "docker" / "app" / "Dockerfile").write_text(
-        "FROM python:3.12-slim\nWORKDIR /app\nCOPY . .\n"
-    )
+    (repo / "docker" / "app" / "Dockerfile").write_text("FROM python:3.12-slim\nWORKDIR /app\nCOPY . .\n")
     (repo / "docs").mkdir()
     (repo / ".github" / "workflows").mkdir(parents=True)
     return repo
@@ -73,27 +73,25 @@ class TestRepoPlugin:
         assert "repo.missing_readme" in rule_ids
 
     def test_should_detect_env_interpolation(self, minimal_repo: Path):
+        # env-interpolation detection moved RepoPlugin → ComposePlugin (compose.env_interpolation).
         compose = minimal_repo / "docker-compose.prod.yml"
-        compose.write_text(
-            "services:\n"
-            "  web:\n"
-            "    environment:\n"
-            "      SECRET_KEY: ${SECRET_KEY}\n"
-        )
-        plugin = RepoPlugin()
+        compose.write_text("services:\n  web:\n    environment:\n      SECRET_KEY: ${SECRET_KEY}\n")
+        plugin = ComposePlugin()
         findings = plugin.check("test-hub", {"repo_path": str(minimal_repo)})
         rule_ids = {f.rule_id for f in findings}
-        assert "repo.env_interpolation" in rule_ids
+        assert "compose.env_interpolation" in rule_ids
 
     def test_should_detect_env_not_gitignored(self, minimal_repo: Path):
+        # .gitignore-secret detection moved RepoPlugin → SecurityPlugin (security.gitignore_missing_env).
         (minimal_repo / ".gitignore").write_text("__pycache__\n")
-        plugin = RepoPlugin()
+        plugin = SecurityPlugin()
         findings = plugin.check("test-hub", {"repo_path": str(minimal_repo)})
         rule_ids = {f.rule_id for f in findings}
-        assert "repo.env_not_gitignored" in rule_ids
+        assert "security.gitignore_missing_env" in rule_ids
 
     def test_should_detect_missing_dockerfile(self, minimal_repo: Path):
         import shutil
+
         shutil.rmtree(minimal_repo / "docker")
         plugin = RepoPlugin()
         findings = plugin.check("test-hub", {"repo_path": str(minimal_repo)})
@@ -124,10 +122,7 @@ class TestComposePlugin:
 
     def test_should_detect_healthcheck_in_dockerfile(self, minimal_repo: Path):
         df = minimal_repo / "docker" / "app" / "Dockerfile"
-        df.write_text(
-            "FROM python:3.12-slim\n"
-            "HEALTHCHECK CMD curl -f http://localhost:8000/livez/ || exit 1\n"
-        )
+        df.write_text("FROM python:3.12-slim\nHEALTHCHECK CMD curl -f http://localhost:8000/livez/ || exit 1\n")
         plugin = ComposePlugin()
         findings = plugin.check("test-hub", {"repo_path": str(minimal_repo)})
         assert any(f.rule_id == "compose.healthcheck_in_dockerfile" for f in findings)
@@ -154,10 +149,12 @@ class TestComposePlugin:
             "    logging:\n      driver: json-file\n"
             "    healthcheck:\n      test: echo ok\n"
         )
-        plugin = ComposePlugin()
+        # port-on-all-interfaces detection moved ComposePlugin → SecurityPlugin.
+        plugin = SecurityPlugin()
         findings = plugin.check("test-hub", {"repo_path": str(minimal_repo)})
         rule_ids = {f.rule_id for f in findings}
-        assert "compose.port_exposed_all_interfaces" in rule_ids
+        # bare "8080:8000" = implicit all-interface bind (explicit 0.0.0.0 → compose_port_all_interfaces).
+        assert "security.compose_port_implicit_bind" in rule_ids
 
 
 # ── ADRPlugin ────────────────────────────────────────────────────────────────
@@ -207,12 +204,7 @@ class TestADRPlugin:
         adr_dir = minimal_repo / "docs" / "adr"
         adr_dir.mkdir(parents=True)
         (adr_dir / "ADR-002-accepted.md").write_text(
-            "---\n"
-            "title: 'ADR-002: Accepted'\n"
-            "status: accepted\n"
-            "date: 2026-01-01\n"
-            "---\n\n"
-            "# ADR-002\n"
+            "---\ntitle: 'ADR-002: Accepted'\nstatus: accepted\ndate: 2026-01-01\n---\n\n# ADR-002\n"
         )
 
         plugin = ADRPlugin()
@@ -253,9 +245,7 @@ class TestPortPlugin:
         repo_path = tmp_path / "test-hub"
         repo_path.mkdir()
         (repo_path / "docker-compose.prod.yml").write_text(
-            "services:\n"
-            "  web:\n"
-            '    ports:\n      - "127.0.0.1:9999:8000"\n'
+            'services:\n  web:\n    ports:\n      - "127.0.0.1:9999:8000"\n'
         )
 
         plugin = PortPlugin()
@@ -269,18 +259,13 @@ class TestPortPlugin:
         platform_dir = tmp_path / "platform" / "infra"
         platform_dir.mkdir(parents=True)
         (platform_dir / "ports.yaml").write_text(
-            "services:\n"
-            "  test-hub:\n"
-            "    prod: 8080\n"
-            "    repo: achimdehnert/test-hub\n"
+            "services:\n  test-hub:\n    prod: 8080\n    repo: achimdehnert/test-hub\n"
         )
 
         repo_path = tmp_path / "test-hub"
         repo_path.mkdir()
         (repo_path / "docker-compose.prod.yml").write_text(
-            "services:\n"
-            "  web:\n"
-            '    ports:\n      - "127.0.0.1:8080:8000"\n'
+            'services:\n  web:\n    ports:\n      - "127.0.0.1:8080:8000"\n'
         )
 
         plugin = PortPlugin()
@@ -301,9 +286,7 @@ class TestUCPlugin:
         from reflex.review.plugins.uc_plugin import UCPlugin
 
         plugin = UCPlugin()
-        findings = plugin.check(
-            "test-hub", {"repo_path": str(tmp_path)}
-        )
+        findings = plugin.check("test-hub", {"repo_path": str(tmp_path)})
         assert len(findings) == 1
         assert findings[0].rule_id == "uc.no_uc_directory"
         assert findings[0].severity == ReviewSeverity.WARN
@@ -313,12 +296,8 @@ class TestUCPlugin:
 
         (tmp_path / "docs" / "use-cases").mkdir(parents=True)
         plugin = UCPlugin()
-        findings = plugin.check(
-            "test-hub", {"repo_path": str(tmp_path)}
-        )
-        assert any(
-            f.rule_id == "uc.no_uc_files" for f in findings
-        )
+        findings = plugin.check("test-hub", {"repo_path": str(tmp_path)})
+        assert any(f.rule_id == "uc.no_uc_files" for f in findings)
 
     def test_valid_uc_file(self, tmp_path: Path):
         from reflex.review.plugins.uc_plugin import UCPlugin
@@ -336,9 +315,7 @@ class TestUCPlugin:
                 "## Nachbedingung\n\nDaten gespeichert\n"
             )
         plugin = UCPlugin()
-        findings = plugin.check(
-            "test-hub", {"repo_path": str(tmp_path)}
-        )
+        findings = plugin.check("test-hub", {"repo_path": str(tmp_path)})
         assert len(findings) == 0
 
     def test_missing_required_section(self, tmp_path: Path):
@@ -347,18 +324,11 @@ class TestUCPlugin:
         uc_dir = tmp_path / "docs" / "use-cases"
         uc_dir.mkdir(parents=True)
         (uc_dir / "UC-001-bad.md").write_text(
-            "# UC-001: Bad UC\n\n"
-            "**Status:** Draft\n\n"
-            "Some text without proper sections.\n"
+            "# UC-001: Bad UC\n\n**Status:** Draft\n\nSome text without proper sections.\n"
         )
         plugin = UCPlugin()
-        findings = plugin.check(
-            "test-hub", {"repo_path": str(tmp_path)}
-        )
-        block_findings = [
-            f for f in findings
-            if f.severity == ReviewSeverity.BLOCK
-        ]
+        findings = plugin.check("test-hub", {"repo_path": str(tmp_path)})
+        block_findings = [f for f in findings if f.severity == ReviewSeverity.BLOCK]
         assert len(block_findings) >= 3
 
     def test_all_draft_warning(self, tmp_path: Path):
@@ -377,12 +347,8 @@ class TestUCPlugin:
                 "## Nachbedingung\n\nDone\n"
             )
         plugin = UCPlugin()
-        findings = plugin.check(
-            "test-hub", {"repo_path": str(tmp_path)}
-        )
-        assert any(
-            f.rule_id == "uc.all_draft" for f in findings
-        )
+        findings = plugin.check("test-hub", {"repo_path": str(tmp_path)})
+        assert any(f.rule_id == "uc.all_draft" for f in findings)
 
     def test_low_uc_count_info(self, tmp_path: Path):
         from reflex.review.plugins.uc_plugin import UCPlugin
@@ -399,12 +365,8 @@ class TestUCPlugin:
             "## Nachbedingung\n\nDone\n"
         )
         plugin = UCPlugin()
-        findings = plugin.check(
-            "test-hub", {"repo_path": str(tmp_path)}
-        )
-        assert any(
-            f.rule_id == "uc.low_uc_count" for f in findings
-        )
+        findings = plugin.check("test-hub", {"repo_path": str(tmp_path)})
+        assert any(f.rule_id == "uc.low_uc_count" for f in findings)
 
 
 # ── InfraPlugin ──────────────────────────────────────────────────────────────
@@ -457,11 +419,7 @@ class TestInfraPlugin:
         repo = tmp_path / "test-hub"
         scripts = repo / "scripts"
         scripts.mkdir(parents=True)
-        (scripts / "backup.sh").write_text(
-            "#!/bin/bash\n"
-            "KEEP_DAYS=3\n"
-            "find /opt/backups -mtime +$KEEP_DAYS -delete\n"
-        )
+        (scripts / "backup.sh").write_text("#!/bin/bash\nKEEP_DAYS=3\nfind /opt/backups -mtime +$KEEP_DAYS -delete\n")
         plugin = InfraPlugin()
         findings = plugin.check("test-hub", {"repo_path": str(repo)})
         rule_ids = {f.rule_id for f in findings}
@@ -523,9 +481,7 @@ class TestInfraPlugin:
         repo = tmp_path / "test-hub"
         scripts = repo / "scripts"
         scripts.mkdir(parents=True)
-        (scripts / "backup.sh").write_text(
-            "#!/bin/bash\nKEEP_DAYS=1\nfind /opt -mtime +1 -delete\n"
-        )
+        (scripts / "backup.sh").write_text("#!/bin/bash\nKEEP_DAYS=1\nfind /opt -mtime +1 -delete\n")
         plugin = InfraPlugin()
         plugin.check("test-hub", {"repo_path": str(repo)})
         assert hasattr(plugin, "last_metrics")
