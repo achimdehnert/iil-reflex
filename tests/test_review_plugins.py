@@ -11,6 +11,7 @@ from reflex.review.plugins.compose_plugin import ComposePlugin
 from reflex.review.plugins.infra_plugin import InfraPlugin
 from reflex.review.plugins.port_plugin import PortPlugin
 from reflex.review.plugins.repo_plugin import RepoPlugin
+from reflex.review.plugins.security_plugin import SecurityPlugin
 from reflex.review.types import ReviewSeverity
 
 # ── Fixtures ─────────────────────────────────────────────────────────────────
@@ -72,19 +73,21 @@ class TestRepoPlugin:
         assert "repo.missing_readme" in rule_ids
 
     def test_should_detect_env_interpolation(self, minimal_repo: Path):
+        # env-interpolation detection moved RepoPlugin → ComposePlugin (compose.env_interpolation).
         compose = minimal_repo / "docker-compose.prod.yml"
         compose.write_text("services:\n  web:\n    environment:\n      SECRET_KEY: ${SECRET_KEY}\n")
-        plugin = RepoPlugin()
+        plugin = ComposePlugin()
         findings = plugin.check("test-hub", {"repo_path": str(minimal_repo)})
         rule_ids = {f.rule_id for f in findings}
-        assert "repo.env_interpolation" in rule_ids
+        assert "compose.env_interpolation" in rule_ids
 
     def test_should_detect_env_not_gitignored(self, minimal_repo: Path):
+        # .gitignore-secret detection moved RepoPlugin → SecurityPlugin (security.gitignore_missing_env).
         (minimal_repo / ".gitignore").write_text("__pycache__\n")
-        plugin = RepoPlugin()
+        plugin = SecurityPlugin()
         findings = plugin.check("test-hub", {"repo_path": str(minimal_repo)})
         rule_ids = {f.rule_id for f in findings}
-        assert "repo.env_not_gitignored" in rule_ids
+        assert "security.gitignore_missing_env" in rule_ids
 
     def test_should_detect_missing_dockerfile(self, minimal_repo: Path):
         import shutil
@@ -146,10 +149,12 @@ class TestComposePlugin:
             "    logging:\n      driver: json-file\n"
             "    healthcheck:\n      test: echo ok\n"
         )
-        plugin = ComposePlugin()
+        # port-on-all-interfaces detection moved ComposePlugin → SecurityPlugin.
+        plugin = SecurityPlugin()
         findings = plugin.check("test-hub", {"repo_path": str(minimal_repo)})
         rule_ids = {f.rule_id for f in findings}
-        assert "compose.port_exposed_all_interfaces" in rule_ids
+        # bare "8080:8000" = implicit all-interface bind (explicit 0.0.0.0 → compose_port_all_interfaces).
+        assert "security.compose_port_implicit_bind" in rule_ids
 
 
 # ── ADRPlugin ────────────────────────────────────────────────────────────────

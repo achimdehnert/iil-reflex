@@ -63,11 +63,13 @@ class TestExtractPdfFromBytes:
         import logging
 
         extractor = _mock_extractor("text", errors=["Page 2: decode error"])
-        with patch("ingest.extractors.pdf.PDFExtractor", extractor):
-            with caplog.at_level(logging.WARNING, logger="reflex.web"):
-                from reflex.web import HttpxWebProvider
+        with (
+            patch("ingest.extractors.pdf.PDFExtractor", extractor),
+            caplog.at_level(logging.WARNING, logger="reflex.web"),
+        ):
+            from reflex.web import HttpxWebProvider
 
-                HttpxWebProvider._extract_pdf_from_bytes(b"%PDF-fake")
+            HttpxWebProvider._extract_pdf_from_bytes(b"%PDF-fake")
         assert any("decode error" in r.message for r in caplog.records)
 
     def test_returns_fallback_message_if_iil_ingest_missing(self):
@@ -150,11 +152,13 @@ class TestPDFDocumentProviderReadFile:
         pdf_file.write_bytes(b"%PDF-minimal")
 
         extractor = _mock_extractor("text", errors=["Page 1: corrupt stream"])
-        with patch("ingest.extractors.pdf.PDFExtractor", extractor):
-            with caplog.at_level(logging.WARNING, logger="reflex.web"):
-                from reflex.web import PDFDocumentProvider
+        with (
+            patch("ingest.extractors.pdf.PDFExtractor", extractor),
+            caplog.at_level(logging.WARNING, logger="reflex.web"),
+        ):
+            from reflex.web import PDFDocumentProvider
 
-                PDFDocumentProvider().read_file(str(pdf_file))
+            PDFDocumentProvider().read_file(str(pdf_file))
         assert any("corrupt stream" in r.message for r in caplog.records)
 
 
@@ -232,7 +236,7 @@ class TestOCRDiagnostic:
         """Generate a white image with text, convert to single-page PDF, run OCR."""
         pytest.importorskip("pytesseract")
         pytest.importorskip("pdf2image")
-        PIL = pytest.importorskip("PIL")
+        pytest.importorskip("PIL")
 
         from PIL import Image, ImageDraw
 

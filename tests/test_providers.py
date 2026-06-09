@@ -28,11 +28,11 @@ class TestMockKnowledgeProvider:
         assert results == []
 
     def test_should_return_configured_results(self):
-        entries = [KnowledgeEntry(term="ATEX", definition="Explosive Atmospheres")]
+        entries = [KnowledgeEntry(title="ATEX", content="Explosive Atmospheres")]
         provider = MockKnowledgeProvider(entries=entries)
         results = provider.search("ATEX")
         assert len(results) == 1
-        assert results[0].term == "ATEX"
+        assert results[0].title == "ATEX"
 
 
 class TestMockDocumentProvider:
@@ -44,20 +44,15 @@ class TestMockDocumentProvider:
 
     def test_should_return_empty_list(self):
         provider = MockDocumentProvider()
-        results = provider.list_documents()
+        results = provider.search("anything")
         assert results == []
 
     def test_should_return_configured_documents(self):
-        docs = [DocumentEntry(path="docs/uc/UC-001.md", title="UC-001")]
-        provider = MockDocumentProvider(documents=docs)
-        results = provider.list_documents()
+        docs = [DocumentEntry(title="UC-001", snippet="docs/uc/UC-001.md")]
+        provider = MockDocumentProvider(entries=docs)
+        results = provider.search("UC-001")
         assert len(results) == 1
-        assert results[0].path == "docs/uc/UC-001.md"
-
-    def test_should_read_document_content(self):
-        provider = MockDocumentProvider(content="# UC-001\n\nTest content")
-        content = provider.read("docs/uc/UC-001.md")
-        assert "UC-001" in content
+        assert results[0].title == "UC-001"
 
 
 class TestMockWebProvider:
@@ -75,7 +70,7 @@ class TestMockWebProvider:
 
     def test_should_return_configured_page(self):
         custom = WebPage(url="https://test.com", title="Custom", text="Hello")
-        provider = MockWebProvider(page=custom)
+        provider = MockWebProvider(pages=[custom])
         page = provider.fetch("https://test.com")
         assert page.title == "Custom"
         assert page.text == "Hello"
@@ -95,6 +90,6 @@ class TestMockLLMProvider:
         assert len(response) > 0
 
     def test_should_return_configured_response(self):
-        provider = MockLLMProvider(response="ATEX is about explosive atmospheres.")
-        response = provider.complete("What is ATEX?")
+        provider = MockLLMProvider(responses={"explain_atex": "ATEX is about explosive atmospheres."})
+        response = provider.complete([{"role": "user", "content": "What is ATEX?"}], action_code="explain_atex")
         assert "explosive atmospheres" in response
