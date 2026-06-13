@@ -524,7 +524,7 @@ async function toggleHub(slug) {{
     showToast((isRunning ? 'Stopping' : 'Starting') + ' ' + slug + '...', 5000);
 
     try {{
-        const resp = await fetch('/api/' + action + '/' + slug);
+        const resp = await fetch('/api/' + action + '/' + slug, {{method: 'POST'}});
         const data = await resp.json();
         if (data.ok) {{
             showToast(data.message || (slug + ' ' + action + 'ed'), 3000);

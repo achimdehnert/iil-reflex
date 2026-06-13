@@ -391,7 +391,7 @@ def cmd_dashboard(args: argparse.Namespace) -> int:
     from reflex.dashboard import run_dashboard
 
     github_dir = args.github_dir or str(Path.home() / "github")
-    run_dashboard(port=args.dashboard_port, github_dir=github_dir)
+    run_dashboard(port=args.dashboard_port, github_dir=github_dir, host=args.bind)
     return 0
 
 
@@ -509,6 +509,11 @@ def main() -> int:
     p_dash = sub.add_parser("dashboard", help="Local dev dashboard — app tiles + docker control")
     p_dash.add_argument("--dashboard-port", type=int, default=9000, help="Dashboard port (default: 9000)")
     p_dash.add_argument("--github-dir", default="", help="Path to github repos directory")
+    p_dash.add_argument(
+        "--bind",
+        default="127.0.0.1",
+        help="Bind address (default: 127.0.0.1 / loopback only — the Docker control API is unauthenticated)",
+    )
 
     # review (ADR-165)
     p_review = sub.add_parser(
