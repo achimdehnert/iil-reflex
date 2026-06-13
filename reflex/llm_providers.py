@@ -191,8 +191,8 @@ def get_provider(
 
             logger.debug("Auto-detected aifw — using AifwProvider")
             return AifwProvider(**kwargs)
-        except (ImportError, Exception):
-            logger.debug("aifw not available — falling back to LiteLLMProvider")
+        except Exception as exc:
+            logger.debug("aifw not available (%s) — falling back to LiteLLMProvider", exc)
             return LiteLLMProvider(**kwargs)
 
     raise ValueError(f"Unknown backend: {backend!r}. Choose from: aifw, litellm, auto")

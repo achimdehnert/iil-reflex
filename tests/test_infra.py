@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
 from reflex.infra import (
+    cmd_infra,
     format_info_card,
     get_service_info,
 )
@@ -66,3 +68,28 @@ class TestFormatInfoCard:
         card = format_info_card(info)  # single-arg: name is taken from info["name"]
         assert "risk-hub" in card
         assert "8090" in card
+
+
+class TestCmdInfraOutput:
+    """Regression: cmd_infra must write to stdout/stderr, not via suppressed logger.
+
+    Previously the payload was emitted through ``logger.info`` (silent at the default
+    WARNING level) and errors via ``logger.error(..., file=...)`` which raised TypeError.
+    """
+
+    def test_should_print_info_card_to_stdout(self, mock_ports_yaml, capsys):
+        ns = argparse.Namespace(all=False, repo="risk-hub", live=False, json=False, github_dir="/repos")
+        with patch("reflex.infra._find_ports_yaml", return_value=mock_ports_yaml):
+            rc = cmd_infra(ns)
+        out = capsys.readouterr().out
+        assert rc == 0
+        assert "risk-hub" in out
+        assert "8090" in out
+
+    def test_should_print_error_to_stderr_for_unknown_repo(self, mock_ports_yaml, capsys):
+        ns = argparse.Namespace(all=False, repo="__nope__", live=False, json=False, github_dir="/repos")
+        with patch("reflex.infra._find_ports_yaml", return_value=mock_ports_yaml):
+            rc = cmd_infra(ns)  # must NOT raise TypeError
+        err = capsys.readouterr().err
+        assert rc == 1
+        assert "not found" in err

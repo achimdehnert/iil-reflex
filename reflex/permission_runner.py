@@ -288,16 +288,16 @@ class PermissionRunner:
 
     @staticmethod
     def print_report(report: PermissionReport) -> None:
-        """Print human-readable permission test report."""
-        logger.info(f"\n{'=' * 70}")
-        logger.info("  REFLEX Permission Matrix Test Report")
-        logger.info(f"{'=' * 70}")
-        logger.info(f"  Base URL: {report.base_url}")
-        logger.info(f"  Total:    {report.total}")
-        logger.info(f"  Passed:   {report.passed}")
-        logger.info(f"  Failed:   {report.failed}")
-        logger.info(f"  Rate:     {report.pass_rate:.0f}%")
-        logger.info(f"{'=' * 70}\n")
+        """Print human-readable permission test report to stdout."""
+        print(f"\n{'=' * 70}")
+        print("  REFLEX Permission Matrix Test Report")
+        print(f"{'=' * 70}")
+        print(f"  Base URL: {report.base_url}")
+        print(f"  Total:    {report.total}")
+        print(f"  Passed:   {report.passed}")
+        print(f"  Failed:   {report.failed}")
+        print(f"  Rate:     {report.pass_rate:.0f}%")
+        print(f"{'=' * 70}\n")
 
         # Group by URL
         by_url: dict[str, list[PermissionTestResult]] = {}
@@ -308,15 +308,15 @@ class PermissionRunner:
             roles_str = "  ".join(
                 f"{'✅' if r.passed else '❌'}{r.role}:{r.actual_status}" for r in sorted(results, key=lambda x: x.role)
             )
-            logger.info(f"  {url}")
-            logger.info(f"    {roles_str}")
+            print(f"  {url}")
+            print(f"    {roles_str}")
 
         if report.failed > 0:
-            logger.error(f"\n  ❌ FAILURES ({report.failed}):")
+            print(f"\n  ❌ FAILURES ({report.failed}):")
             for r in report.failures_only():
-                logger.info(f"    {r.url} [{r.role}]: expected {r.expected_status}, got {r.actual_status}")
+                print(f"    {r.url} [{r.role}]: expected {r.expected_status}, got {r.actual_status}")
 
-        logger.info()
+        print()
 
     @staticmethod
     def to_json(report: PermissionReport) -> str:
