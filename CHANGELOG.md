@@ -5,6 +5,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [Unreleased]
+
+### Removed
+- **Dead `reflex/dashboard.py`** (893 LOC): shadowed by the `reflex/dashboard/`
+  package since the 2026-04-18 split — Python always imported the package, never
+  the flat module. Removing it deletes unreachable code (was at 0% coverage).
+
+### Added
+- Test coverage for `reflex.review.metrics.MetricsWriter` (was 0%): no-URL
+  degradation, env-var precedence, row writing, table creation, and graceful
+  handling of a missing `psycopg` driver.
+
+### Changed
+- Python version metadata unified to **3.12** (matches `requires-python>=3.12`):
+  dropped the stale `Python :: 3.11` classifier and bumped `ruff target-version`
+  from `py311` to `py312`.
+
+---
+
 ## [0.5.0] — 2026-04-23
 
 ### Added
