@@ -33,6 +33,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 - **PEP-561 `py.typed` marker** — the package is fully type-annotated; downstream
   `mypy`/`pyright` users now actually receive the types (verified present in the wheel).
+- **CI coverage gate + packaging smoke**: the test job now enforces
+  `--cov-fail-under=85`; a new `package` job builds the wheel, installs it into a
+  clean venv, and smoke-tests it (`import`, `reflex --help`, `py.typed` present).
+- Test coverage for the `reflex` CLI (`__main__`) raised 41% → 99%: every
+  subcommand dispatch (`research`, `scrape`, `sds`, `init`, `platform`, `dashboard`,
+  `review`, `infra`, no-command help) with mocked providers.
+- Test coverage for `reflex.web` raised 60% → 91%: `fetch` (domain block / JSON /
+  HTML / error), `search_web`, the PubChem + GESTIS adapters end-to-end (injected
+  web provider), `PDFDocumentProvider`, and `_retry_get` retry-on-timeout.
+- Test coverage for `reflex.platform_runner` raised 71% → 99%: `run_all` and
+  `_check_hub` (config-missing, httpx-missing, health/routes/perms/UCs,
+  connection-refused, generic error).
 - Test coverage for `reflex.permission_runner` raised 47% → 100%: `run_all`
   orchestration (anonymous + authenticated, session reuse, failed-login skip,
   missing-`httpx`), the request helpers, `_create_authenticated_session` (all login

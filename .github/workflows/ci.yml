@@ -30,7 +30,7 @@ jobs:
         run: ruff check reflex/ tests/
 
       - name: Run tests with coverage gate
-        run: pytest tests/ --tb=short --cov=reflex --cov-report=term-missing --cov-fail-under=75
+        run: pytest tests/ --tb=short --cov=reflex --cov-report=term-missing --cov-fail-under=85
 
   package:
     # Verify the package actually builds and installs from the wheel — catches

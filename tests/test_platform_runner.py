@@ -1,11 +1,14 @@
 """Tests for reflex.platform_runner — ADR-163 platform-wide checks."""
 
+import sys
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
 
 from reflex.platform_runner import (
+    HubEntry,
     HubReport,
     PlatformReport,
     PlatformRunner,
@@ -163,3 +166,117 @@ class TestPlatformRunnerOutput:
         captured = capsys.readouterr()
         assert "risk-hub" in captured.out
         assert "REFLEX Platform Health Report" in captured.out
+
+
+class TestStatusIconDefault:
+    def test_should_show_blank_icon_when_down_without_error(self):
+        # no error, no routes, health_ok False → ⬜
+        assert HubReport(name="x", tier=2).status_icon == "⬜"
+
+
+class TestRunAll:
+    def test_should_aggregate_hub_reports(self):
+        hubs = [
+            HubEntry(name="a", tier=1, config_path="", base_url="http://a"),
+            HubEntry(name="b", tier=2, config_path="", base_url="http://b"),
+        ]
+        runner = PlatformRunner(hubs)
+        with patch.object(
+            runner,
+            "_check_hub",
+            side_effect=lambda h: HubReport(name=h.name, tier=h.tier, health_ok=True),
+        ):
+            report = runner.run_all()
+        assert report.total_hubs == 2
+        assert report.healthy_hubs == 2
+        assert report.generated_at
+        assert report.total_duration_seconds >= 0.0
+
+
+def _mock_client(get_return=None, get_side_effect=None):
+    client = MagicMock()
+    if get_side_effect is not None:
+        client.get.side_effect = get_side_effect
+    else:
+        client.get.return_value = get_return or MagicMock(status_code=200)
+    cm = MagicMock()
+    cm.__enter__.return_value = client
+    return cm, client
+
+
+class TestCheckHub:
+    def test_should_error_when_config_missing(self):
+        hub = HubEntry(name="x", tier=1, config_path="/nonexistent/reflex.yaml", base_url="http://h")
+        hr = PlatformRunner([hub])._check_hub(hub)
+        assert "Config not found" in hr.error
+
+    def test_should_error_when_httpx_missing(self, monkeypatch):
+        monkeypatch.setitem(sys.modules, "httpx", None)
+        hub = HubEntry(name="x", tier=2, config_path="", base_url="http://h")
+        hr = PlatformRunner([hub])._check_hub(hub)
+        assert "httpx not installed" in hr.error
+
+    def test_should_check_health_routes_perms_and_ucs(self, tmp_path):
+        cfg = tmp_path / "reflex.yaml"
+        cfg.write_text(
+            yaml.dump(
+                {
+                    "test_routes": [
+                        {"url": "/pub/", "expect": 200, "auth": False},
+                        {"url": "/secret/", "expect": 200, "auth": True},  # skipped (auth)
+                    ],
+                    "permissions_matrix": {"/a/": {"anon": 200, "admin": 200}},
+                }
+            )
+        )
+        uc_dir = tmp_path / "docs" / "use-cases"
+        uc_dir.mkdir(parents=True)
+        (uc_dir / "UC-001-x.md").write_text("x")
+        (uc_dir / "UC-002-y.md").write_text("y")
+
+        hub = HubEntry(name="risk-hub", tier=1, config_path=str(cfg), base_url="http://h")
+        runner = PlatformRunner([hub])
+        cm, _client = _mock_client(get_return=MagicMock(status_code=200))
+        with patch("httpx.Client", return_value=cm):
+            hr = runner._check_hub(hub)
+        assert hr.health_ok is True
+        assert hr.uc_count == 2
+        assert hr.routes_total == 1  # only the auth=False route
+        assert hr.routes_ok == 1
+        assert hr.permissions_total == 2
+
+    def test_should_tolerate_route_request_errors(self, tmp_path):
+        cfg = tmp_path / "reflex.yaml"
+        cfg.write_text(yaml.dump({"test_routes": [{"url": "/pub/", "expect": 200, "auth": False}]}))
+        hub = HubEntry(name="h", tier=2, config_path=str(cfg), base_url="http://h")
+        runner = PlatformRunner([hub])
+
+        def get(url, **kw):
+            if url.endswith("/livez/"):
+                return MagicMock(status_code=200)
+            raise RuntimeError("route down")
+
+        cm, _client = _mock_client(get_side_effect=get)
+        with patch("httpx.Client", return_value=cm):
+            hr = runner._check_hub(hub)
+        assert hr.health_ok is True
+        assert hr.routes_total == 1
+        assert hr.routes_ok == 0  # the route raised, swallowed
+
+    def test_should_record_connection_refused(self):
+        import httpx
+
+        hub = HubEntry(name="x", tier=2, config_path="", base_url="http://h")
+        runner = PlatformRunner([hub])
+        cm, _client = _mock_client(get_side_effect=httpx.ConnectError("refused"))
+        with patch("httpx.Client", return_value=cm):
+            hr = runner._check_hub(hub)
+        assert "Connection refused" in hr.error
+
+    def test_should_record_generic_error(self):
+        hub = HubEntry(name="x", tier=2, config_path="", base_url="http://h")
+        runner = PlatformRunner([hub])
+        cm, _client = _mock_client(get_side_effect=RuntimeError("boom"))
+        with patch("httpx.Client", return_value=cm):
+            hr = runner._check_hub(hub)
+        assert "boom" in hr.error
