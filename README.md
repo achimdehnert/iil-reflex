@@ -367,6 +367,8 @@ INFRA_PROBLEM → DevOps → check server/network
 
 | Document | Audience | Link |
 |----------|----------|------|
+| **Architektur & Developer Guide** | Contributors, Integratoren | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| **Development Roadmap** | Maintainer | [docs/ROADMAP.md](docs/ROADMAP.md) |
 | Möglichkeiten & Arbeitsweise | Product Owner, Fachexperten | [→ Outline](https://knowledge.iil.pet/doc/reflex-moglichkeiten-und-arbeitsweise-if47bsKMgP) |
 | Funktionsbeschreibung (technisch) | Entwickler | [→ Outline](https://knowledge.iil.pet/doc/iil-reflex-funktionsbeschreibung-rfOPSaQfxO) |
 | CLI Referenz | Entwickler, DevOps | [→ Outline](https://knowledge.iil.pet/doc/iil-reflex-cli-referenz-alle-befehle-und-beispiele-t7Eg3h8k7b) |
