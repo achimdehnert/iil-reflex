@@ -204,8 +204,11 @@ class PermissionRunner:
                     )
 
         finally:
+            # A role whose login failed is cached as None (so we don't retry it
+            # for every URL) — skip those when closing.
             for session in sessions.values():
-                session.close()
+                if session is not None:
+                    session.close()
 
         return report
 
@@ -316,7 +319,7 @@ class PermissionRunner:
             for r in report.failures_only():
                 logger.info(f"    {r.url} [{r.role}]: expected {r.expected_status}, got {r.actual_status}")
 
-        logger.info()
+        logger.info("")
 
     @staticmethod
     def to_json(report: PermissionReport) -> str:

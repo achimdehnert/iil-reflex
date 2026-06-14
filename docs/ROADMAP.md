@@ -8,20 +8,21 @@ Status legend: 🔵 ready (no decision needed) · 🟢 needs a call · 🟡 larg
 
 ---
 
-## R1 · Close the test-coverage debt on risky modules 🔵
+## R1 · Close the test-coverage debt on risky modules 🟡 (partly done)
 
 **Evidence:** `infra.py` 22%, `__main__.py` 41%, `permission_runner.py` 47%,
 `web.py` 60%, `platform_runner.py` 71% (vs `cycle.py` now 98%, `quality`/`config`/
 `providers` at 100%).
 
-**Why:** `infra.py` is the largest gap (231 uncovered lines) and it runs **SSH +
-docker** commands — exactly the code where an untested edge case does real damage.
-`permission_runner` is a security-adjacent surface (who-can-reach-what) and should be
-the best-tested module, not a middling one.
+**Why:** `infra.py` is the largest gap and it runs **SSH + docker** commands — exactly
+the code where an untested edge case does real damage. `permission_runner` is a
+security-adjacent surface (who-can-reach-what) and should be the best-tested module.
 
-**First step:** apply the `cycle.py` pattern (mock `subprocess`/`httpx`, assert the
-`PhaseResult`/report shape) to `permission_runner.py` first, then `infra.py`. Target a
-per-module floor of ~85%.
+**Done:** `permission_runner.py` 47% → **100%** and `infra.py` 22% → **95%** — which
+surfaced and fixed three real bugs (see CHANGELOG: `run_all` `None.close()` crash, the
+`logger.error(file=…)` `TypeError` in `reflex infra`, and the `print_report` crash).
+
+**Remaining:** `__main__.py` (41%), `web.py` (60%), `platform_runner.py` (71%).
 
 ---
 
@@ -42,17 +43,14 @@ has no VCS dependency.
 
 ---
 
-## R3 · Ship a `py.typed` marker 🔵
+## R3 · Ship a `py.typed` marker ✅ done
 
-**Evidence:** the package is fully type-annotated (`from __future__ import annotations`
-everywhere, Protocols, dataclasses) but `reflex/py.typed` does **not** exist.
+**Evidence:** the package is fully type-annotated but `reflex/py.typed` did **not**
+exist, so downstream `mypy`/`pyright` users got **none** of these types.
 
-**Why:** without the PEP-561 marker, downstream `mypy`/`pyright` users get **none** of
-these types — the annotation effort is invisible to consumers. One empty file + a
-`hatch` include unlocks it.
-
-**First step:** `touch reflex/py.typed`; add it to the wheel via
-`[tool.hatch.build.targets.wheel]` (or `force-include`).
+**Done:** added `reflex/py.typed`; hatchling already includes package data, verified
+the marker ships in the built wheel (`reflex/py.typed` present in
+`iil_reflex-0.5.0-py3-none-any.whl`).
 
 ---
 
@@ -96,4 +94,5 @@ diagnostics), and add one regression test that asserts the report reaches stdout
 
 ---
 
-*Pick R1, R3, R4 for low-risk wins; R2 and R5 need a product/maintainer decision.*
+*R1 (partly) and R3 are done. R4 is the next low-risk win; R2 and R5 need a
+product/maintainer decision.*
