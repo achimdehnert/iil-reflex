@@ -29,5 +29,34 @@ jobs:
       - name: Lint with ruff
         run: ruff check reflex/ tests/
 
-      - name: Run tests
-        run: pytest tests/ -v --tb=short
+      - name: Run tests with coverage gate
+        run: pytest tests/ --tb=short --cov=reflex --cov-report=term-missing --cov-fail-under=75
+
+  package:
+    # Verify the package actually builds and installs from the wheel — catches
+    # packaging breakage (missing data files, bad metadata) that the test job misses.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build sdist + wheel
+        run: |
+          pip install --upgrade pip build
+          python -m build
+
+      - name: Install the built wheel (core only) in a clean env
+        run: |
+          python -m venv /tmp/wheel-env
+          /tmp/wheel-env/bin/pip install dist/*.whl
+
+      - name: Smoke-test the installed package
+        run: |
+          /tmp/wheel-env/bin/python -c "import reflex; print('reflex', reflex.__version__)"
+          /tmp/wheel-env/bin/reflex --help
+          # PEP 561 marker must ship in the wheel (typed package)
+          python -c "import zipfile, glob, sys; w = glob.glob('dist/*.whl')[0]; names = zipfile.ZipFile(w).namelist(); sys.exit(0 if 'reflex/py.typed' in names else 'py.typed missing from wheel')"

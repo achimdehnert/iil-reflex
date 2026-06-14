@@ -54,18 +54,19 @@ the marker ships in the built wheel (`reflex/py.typed` present in
 
 ---
 
-## R4 · Harden CI: coverage floor + packaging smoke 🔵
+## R4 · Harden CI: coverage floor + packaging smoke ✅ done
 
-**Evidence:** `.github/workflows/ci.yml` runs lint + `pytest` on 3.12 only — no
-coverage threshold, no wheel build, no extra-install check.
+**Evidence:** `.github/workflows/ci.yml` ran lint + `pytest` on 3.12 only — no
+coverage threshold, no wheel build, no install check.
 
-**Why:** the coverage gains from this analysis (e.g. `cycle.py` 50→98%) aren't *locked* —
-nothing fails a PR that regresses them. And no job verifies the package actually builds
-and installs with its extras, so a broken `[web]`/`[metrics]` ships silently.
+**Done:** the test job now runs `pytest --cov=reflex --cov-fail-under=75` (current
+total is 77%, measured both with `[dev,web]` and in a `[dev]`-only CI-equivalent env, so
+the floor has headroom). A new `package` job builds the sdist+wheel, installs the wheel
+into a clean venv, and smoke-tests it (`import reflex`, `reflex --help`, and asserts
+`reflex/py.typed` ships in the wheel).
 
-**First step:** add `--cov=reflex --cov-fail-under=80` to the test job, plus a small job
-that runs `python -m build` and `pip install dist/*.whl` (core) to catch packaging
-breakage early.
+**Next:** raise the floor as R1's remaining modules (`__main__`, `web`,
+`platform_runner`) gain coverage.
 
 ---
 
@@ -94,5 +95,5 @@ diagnostics), and add one regression test that asserts the report reaches stdout
 
 ---
 
-*R1 (partly) and R3 are done. R4 is the next low-risk win; R2 and R5 need a
+*R3 and R4 are done; R1 is partly done. R2 and R5 remain and need a
 product/maintainer decision.*
