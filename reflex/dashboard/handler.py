@@ -19,9 +19,19 @@ from reflex.dashboard.health import (
     start_hub,
     stop_hub,
 )
+from reflex.dashboard.registry import HUBS
 from reflex.dashboard.template import generate_dashboard_html
 
 logger = logging.getLogger(__name__)
+
+# Only requests whose Host header names the loopback interface are served.
+# This defends against DNS-rebinding: a malicious page on attacker.com that
+# resolves to 127.0.0.1 still sends "Host: attacker.com" and is rejected.
+_ALLOWED_HOSTS = frozenset({"localhost", "127.0.0.1", "::1", "[::1]"})
+
+# Container control is restricted to known hubs — never an arbitrary path
+# component (prevents `docker compose` running in a traversed directory).
+_VALID_HUB_SLUGS = frozenset(h["slug"] for h in HUBS)
 
 
 class DashboardHandler(BaseHTTPRequestHandler):
@@ -32,17 +42,20 @@ class DashboardHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         logger.debug(format, *args)
 
+    def _host_allowed(self) -> bool:
+        """Reject cross-origin/DNS-rebinding requests via the Host header."""
+        host = self.headers.get("Host", "")
+        hostname = host.rsplit(":", 1)[0] if host else ""
+        return hostname in _ALLOWED_HOSTS
+
     def do_GET(self):
+        if not self._host_allowed():
+            self.send_error(403, "Forbidden host")
+            return
         if self.path == "/" or self.path == "/index.html":
             self._serve_html()
         elif self.path == "/api/status":
             self._serve_status()
-        elif self.path.startswith("/api/start/"):
-            slug = self.path.split("/api/start/")[1].rstrip("/")
-            self._handle_start(slug)
-        elif self.path.startswith("/api/stop/"):
-            slug = self.path.split("/api/stop/")[1].rstrip("/")
-            self._handle_stop(slug)
         elif self.path == "/api/review":
             self._serve_review()
         elif self.path == "/api/review/refresh":
@@ -52,12 +65,29 @@ class DashboardHandler(BaseHTTPRequestHandler):
         else:
             self.send_error(404)
 
+    def do_POST(self):
+        """State-changing endpoints (container control) — POST only, never GET.
+
+        Using GET for start/stop made them trivially CSRF-able (e.g.
+        ``<img src=".../api/stop/risk-hub">`` on any page the dev visits).
+        """
+        if not self._host_allowed():
+            self.send_error(403, "Forbidden host")
+            return
+        if self.path.startswith("/api/start/"):
+            slug = self.path.split("/api/start/")[1].rstrip("/")
+            self._handle_start(slug)
+        elif self.path.startswith("/api/stop/"):
+            slug = self.path.split("/api/stop/")[1].rstrip("/")
+            self._handle_stop(slug)
+        else:
+            self.send_error(404)
+
     def _json_response(self, data: Any, status: int = 200):
         body = json.dumps(data, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(body)
 
@@ -67,6 +97,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self._json_response(data)
 
     def _handle_start(self, slug: str):
+        if slug not in _VALID_HUB_SLUGS:
+            self._json_response({"ok": False, "error": f"Unknown hub: {slug!r}"}, status=400)
+            return
         result = start_hub(slug, self.github_dir)
         # Refresh health after start
         if result.get("ok"):
@@ -74,6 +107,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self._json_response(result)
 
     def _handle_stop(self, slug: str):
+        if slug not in _VALID_HUB_SLUGS:
+            self._json_response({"ok": False, "error": f"Unknown hub: {slug!r}"}, status=400)
+            return
         result = stop_hub(slug, self.github_dir)
         if result.get("ok"):
             threading.Thread(target=refresh_all_health, args=(self.github_dir,), daemon=True).start()

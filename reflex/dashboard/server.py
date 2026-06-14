@@ -17,8 +17,15 @@ from reflex.dashboard.registry import HUBS
 def run_dashboard(
     port: int = 9000,
     github_dir: str = "",
+    host: str = "127.0.0.1",
 ) -> None:
-    """Start the dashboard web server."""
+    """Start the dashboard web server.
+
+    Binds to loopback (127.0.0.1) by default. The dashboard exposes Docker
+    start/stop control with no authentication, so it must not be reachable from
+    the network — binding to 0.0.0.0 would let anyone on the LAN control
+    containers. Override ``host`` only on a trusted, isolated network.
+    """
     if not github_dir:
         github_dir = str(Path.home() / "github")
 
@@ -28,7 +35,10 @@ def run_dashboard(
     print(f"  {'─' * 45}")
     print(f"  GitHub Dir: {github_dir}")
     print(f"  Hubs:       {len(HUBS)}")
-    print(f"  URL:        http://localhost:{port}")
+    print(f"  URL:        http://{host}:{port}")
+    if host not in ("127.0.0.1", "localhost", "::1"):
+        print("  ⚠️  WARNING: bound to a non-loopback address — the unauthenticated")
+        print("     Docker control API is now reachable from the network.")
     print(f"  {'─' * 45}")
     print("  Press Ctrl+C to stop.\n")
 
@@ -42,7 +52,7 @@ def run_dashboard(
 
     threading.Thread(target=_delayed_review, daemon=True).start()
 
-    server = HTTPServer(("0.0.0.0", port), DashboardHandler)
+    server = HTTPServer((host, port), DashboardHandler)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

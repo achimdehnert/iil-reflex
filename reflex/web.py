@@ -24,14 +24,16 @@ Config (reflex.yaml):
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import logging
 import re
+import socket
 import threading
 import time
 from datetime import UTC, datetime
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, urljoin, urlparse
 
 from reflex.types import SDSData, WebPage
 
@@ -42,8 +44,68 @@ __all__ = ["HttpxWebProvider", "PubChemAdapter", "GESTISAdapter", "PDFDocumentPr
 
 _DEFAULT_UA = "Mozilla/5.0 (REFLEX/0.2; SDS Research Bot; +https://github.com/achimdehnert/iil-reflex)"
 _DEFAULT_TIMEOUT = 30
+# 25 MB default ceiling on a downloaded body — guards against memory-exhaustion
+# from a hostile/huge page or PDF. Override via HttpxWebProvider(max_response_bytes=...).
+_DEFAULT_MAX_RESPONSE_BYTES = 25 * 1024 * 1024
+_MAX_REDIRECTS = 5
 
 _RETRYABLE_STATUS: frozenset[int] = frozenset({408, 425, 429, 500, 502, 503, 504})
+_REDIRECT_STATUS: frozenset[int] = frozenset({301, 302, 303, 307, 308})
+
+
+class BlockedURLError(ValueError):
+    """Raised when a URL is rejected by the SSRF guard (non-public target / bad scheme)."""
+
+
+def _assert_public_url(url: str, allow_private: bool = False) -> None:
+    """Reject URLs that target non-public addresses (SSRF defence).
+
+    Always blocks non-HTTP(S) schemes and literal private/loopback/link-local IPs
+    (e.g. ``http://169.254.169.254/`` cloud metadata, ``http://127.0.0.1``,
+    ``http://10.0.0.1``). When the host is a name, DNS is resolved and the request
+    is blocked if it resolves to a non-public address — but a *resolution failure*
+    is left for the HTTP layer to handle (keeps the guard usable offline / in tests).
+
+    Set ``allow_private=True`` to opt out (e.g. scraping an internal wiki on purpose).
+    """
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise BlockedURLError(f"Blocked non-HTTP(S) URL scheme: {parsed.scheme!r} ({url!r})")
+    host = parsed.hostname
+    if not host:
+        raise BlockedURLError(f"URL has no host: {url!r}")
+    if allow_private:
+        return
+
+    def _check_ip(addr: str) -> None:
+        ip = ipaddress.ip_address(addr)
+        if (
+            ip.is_private
+            or ip.is_loopback
+            or ip.is_link_local
+            or ip.is_reserved
+            or ip.is_multicast
+            or ip.is_unspecified
+        ):
+            raise BlockedURLError(f"Blocked request to non-public address {ip} (host {host!r})")
+
+    # Host is a literal IP → check directly (no DNS needed).
+    try:
+        _check_ip(host)
+        return
+    except ValueError as exc:
+        if isinstance(exc, BlockedURLError):
+            raise
+        # Not an IP literal — fall through to name resolution.
+
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except socket.gaierror:
+        # Cannot resolve — let httpx surface the connection error rather than
+        # masking it here. The guard's job is to block *known* private targets.
+        return
+    for info in infos:
+        _check_ip(info[4][0])
 
 
 def _retry_get(client, url: str, **kwargs):
@@ -163,12 +225,18 @@ class HttpxWebProvider:
         max_pages: int = 10,
         allowed_domains: list[str] | None = None,
         cache: bool = True,
+        allow_private: bool = False,
+        max_response_bytes: int = _DEFAULT_MAX_RESPONSE_BYTES,
     ):
         self.user_agent = user_agent
         self.timeout = timeout
         self.max_pages = max_pages
         self.allowed_domains = allowed_domains or []
         self.cache = cache
+        # SSRF guard: block requests to private/loopback/link-local addresses unless
+        # explicitly opted out (e.g. scraping an internal service on purpose).
+        self.allow_private = allow_private
+        self.max_response_bytes = max_response_bytes
         self._client: Any = None
         self._lock = threading.Lock()
 
@@ -215,6 +283,36 @@ class HttpxWebProvider:
     def __exit__(self, *_exc) -> None:
         self.close()
 
+    # -- SSRF-guarded request ----------------------------------------------
+
+    def _guarded_get(self, url: str):
+        """GET ``url`` with the SSRF guard applied to every redirect hop.
+
+        Redirects are followed manually (not via httpx ``follow_redirects``) so
+        each hop's target is re-validated — otherwise an open redirect to
+        ``http://169.254.169.254/`` would bypass the entry check.
+        """
+        client = self._get_client()
+        current = url
+        for _ in range(_MAX_REDIRECTS + 1):
+            _assert_public_url(current, self.allow_private)
+            resp = _retry_get(client, current, follow_redirects=False)
+            if resp.status_code in _REDIRECT_STATUS and "location" in resp.headers:
+                current = urljoin(current, resp.headers["location"])
+                continue
+            self._enforce_size(resp)
+            return resp
+        raise BlockedURLError(f"Exceeded {_MAX_REDIRECTS} redirects starting at {url!r}")
+
+    def _enforce_size(self, resp) -> None:
+        """Reject responses whose body exceeds ``max_response_bytes``."""
+        declared = resp.headers.get("content-length")
+        if declared and declared.isdigit() and int(declared) > self.max_response_bytes:
+            raise BlockedURLError(f"Response too large: {declared} bytes > {self.max_response_bytes}")
+        # Content-Length may be absent (chunked) — bound the already-buffered body too.
+        if len(resp.content) > self.max_response_bytes:
+            raise BlockedURLError(f"Response body too large: {len(resp.content)} bytes > {self.max_response_bytes}")
+
     # -- WebProvider protocol -----------------------------------------------
 
     def fetch(self, url: str) -> WebPage:
@@ -228,7 +326,7 @@ class HttpxWebProvider:
                 return WebPage(url=url, title="Blocked", text="", status_code=403)
 
         try:
-            resp = _retry_get(self._get_client(), url)
+            resp = self._guarded_get(url)
             content_type = resp.headers.get("content-type", "")
             now = datetime.now(UTC).isoformat()
 
