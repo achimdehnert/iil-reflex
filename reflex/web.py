@@ -285,18 +285,24 @@ class HttpxWebProvider:
 
     # -- SSRF-guarded request ----------------------------------------------
 
-    def _guarded_get(self, url: str):
+    def _guarded_get(self, url: str, **kwargs):
         """GET ``url`` with the SSRF guard applied to every redirect hop.
 
         Redirects are followed manually (not via httpx ``follow_redirects``) so
         each hop's target is re-validated — otherwise an open redirect to
         ``http://169.254.169.254/`` would bypass the entry check.
+
+        ``kwargs`` (e.g. ``params``) apply only to the FIRST request; redirect
+        hops use the already-complete ``Location`` URL, so re-applying params
+        there would corrupt the target.
         """
         client = self._get_client()
         current = url
+        first = True
         for _ in range(_MAX_REDIRECTS + 1):
             _assert_public_url(current, self.allow_private)
-            resp = _retry_get(client, current, follow_redirects=False)
+            resp = _retry_get(client, current, follow_redirects=False, **(kwargs if first else {}))
+            first = False
             if resp.status_code in _REDIRECT_STATUS and "location" in resp.headers:
                 current = urljoin(current, resp.headers["location"])
                 continue
@@ -373,8 +379,9 @@ class HttpxWebProvider:
     def search_web(self, query: str, limit: int = 5) -> list[WebPage]:
         """Search via DuckDuckGo HTML (no API key needed) and scrape results."""
         try:
-            resp = _retry_get(
-                self._get_client(),
+            # Route through the SSRF guard (not a raw _retry_get) — otherwise a
+            # DuckDuckGo redirect to a private/link-local IP would be followed unguarded.
+            resp = self._guarded_get(
                 "https://html.duckduckgo.com/html/",
                 params={"q": query},
             )

@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [Unreleased]
+
+### Fixed
+- **SSRF gap in `HttpxWebProvider.search_web`**: it called `_retry_get` directly on a
+  client with `follow_redirects=True`, bypassing the `_guarded_get` SSRF check — a
+  DuckDuckGo redirect to a private/link-local IP (e.g. `169.254.169.254`) would have
+  been followed unguarded. `search_web` now routes through `_guarded_get` (per-hop
+  `_assert_public_url` + manual redirect following). `_guarded_get` gained `**kwargs`
+  (applied to the first request only) to carry the query params. Regression test drives
+  a 302→metadata-IP redirect and asserts the metadata host is never contacted.
+
+---
+
 ## [0.6.0] — 2026-06-14
 
 ### Fixed
