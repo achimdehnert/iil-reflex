@@ -57,3 +57,34 @@ class TestAssertPublicUrl:
         # A non-resolving host is left for the HTTP layer (keeps the guard
         # usable offline / under respx mocks); it must not raise here.
         web_mod._assert_public_url("https://this-host-does-not-resolve.invalid/")
+
+
+class TestSearchWebSSRF:
+    """search_web must route through the SSRF guard (regression for AD-3).
+
+    Before the fix, search_web called _retry_get directly on a client with
+    follow_redirects=True, so a DuckDuckGo redirect to a private/link-local IP
+    would be followed unguarded.
+    """
+
+    def test_should_block_ddg_redirect_to_metadata_ip(self, monkeypatch):
+        import respx
+
+        # Keep the guard's hostname DNS check offline + deterministic: the DDG
+        # host resolves to a public address, so the FIRST hop is allowed and the
+        # redirect target (link-local metadata IP) is what gets blocked.
+        monkeypatch.setattr(
+            web_mod.socket,
+            "getaddrinfo",
+            lambda host, *a, **k: [(2, 1, 6, "", ("93.184.216.34", 0))],
+        )
+        with respx.mock(assert_all_called=False):
+            respx.get("https://html.duckduckgo.com/html/").respond(
+                302, headers={"location": "http://169.254.169.254/latest/meta-data/"}
+            )
+            meta = respx.get("http://169.254.169.254/latest/meta-data/").respond(200, text="SECRET")
+            provider = web_mod.HttpxWebProvider()
+            results = provider.search_web("anything")
+            provider.close()
+        assert results == []  # BlockedURLError is caught by search_web → empty result
+        assert not meta.called  # guard blocked the hop before the metadata IP was contacted
