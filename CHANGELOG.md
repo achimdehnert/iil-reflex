@@ -8,6 +8,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Fixed
+- **SSH host-key policy hardened** (`reflex infra --live`): `_run_ssh` used
+  `StrictHostKeyChecking=no` (blindly trusts any host key → MITM-able). Now
+  `accept-new` — pins the key on first contact but rejects a *changed* key.
+- **`get_provider` aifw-fallback now logs the cause**: the `except` swallowed the
+  reason a misconfigured aifw degraded to litellm; it now logs `(%s)` so the
+  fallback is diagnosable.
 - **CLI report output was invisible** (`reflex infra`, plus the `print_report` /
   `print_result` helpers): the reports were written via `logger.info`, but the package
   configures no logging handler, so at the default `WARNING` level they produced **no

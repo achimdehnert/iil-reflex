@@ -232,6 +232,14 @@ class TestRunSsh:
         with patch("subprocess.run", side_effect=OSError("boom")):
             assert _run_ssh("user@host", "ls") is None
 
+    def test_should_use_accept_new_host_key_policy(self):
+        # S5: never blindly trust host keys (StrictHostKeyChecking=no = MITM-able).
+        with patch("subprocess.run", return_value=MagicMock(returncode=0, stdout="")) as run:
+            _run_ssh("user@host", "ls")
+        argv = run.call_args[0][0]
+        assert "StrictHostKeyChecking=accept-new" in argv
+        assert "StrictHostKeyChecking=no" not in argv
+
 
 class TestGetLiveStatus:
     def test_should_error_without_ssh_or_container(self):

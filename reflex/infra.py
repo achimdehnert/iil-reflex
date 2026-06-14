@@ -280,7 +280,9 @@ def _run_ssh(ssh_target: str, command: str, timeout: int = 10) -> str | None:
 
     try:
         result = subprocess.run(
-            ["ssh", "-o", "ConnectTimeout=5", "-o", "StrictHostKeyChecking=no", ssh_target, command],
+            # accept-new pins a host key on first contact but still rejects a *changed*
+            # key (MITM defence), unlike StrictHostKeyChecking=no which blindly trusts any key.
+            ["ssh", "-o", "ConnectTimeout=5", "-o", "StrictHostKeyChecking=accept-new", ssh_target, command],
             capture_output=True,
             text=True,
             timeout=timeout,
