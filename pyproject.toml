@@ -3,8 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.metadata]
-# web-Extra hat eine direkte Git-Referenz (iil-ingest, nicht auf PyPI) — hatchling
-# verlangt dafür ein explizites Opt-in, sonst schlägt die Metadata-Generierung fehl.
+# The web-pdf extra has a direct Git reference (iil-ingest, not on PyPI) — hatchling
+# requires an explicit opt-in or metadata generation fails. Kept isolated to web-pdf
+# so the common [web] path (httpx + SDS scraping) installs cleanly from PyPI.
 allow-direct-references = true
 
 [project]
@@ -41,6 +42,11 @@ web = [
     "hishel>=0.0.33",
     "pyrate-limiter>=3.6",
     "beautifulsoup4>=4.12",
+]
+# PDF/OCR extraction. Pulls iil-ingest via a direct Git reference (not on PyPI),
+# so it is split out of [web] to keep the common web path installable from PyPI.
+web-pdf = [
+    "iil-reflex[web]",
     "iil-ingest[pdf,ocr] @ git+https://github.com/achimdehnert/iil-ingest.git",
 ]
 dev = [
@@ -55,7 +61,7 @@ dev = [
     "beautifulsoup4>=4.12",
 ]
 all = [
-    "iil-reflex[llm,aifw,playwright,web,dev]",
+    "iil-reflex[llm,aifw,playwright,web,web-pdf,dev]",
 ]
 
 [project.scripts]

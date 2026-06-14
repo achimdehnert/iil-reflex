@@ -32,20 +32,20 @@ raised from 75% to **85%** to lock these gains in.
 
 ---
 
-## R2 · Make `[web]` installable from PyPI without GitHub 🟢
+## R2 · Make `[web]` installable from PyPI without GitHub ✅ done (option b)
 
-**Evidence:** `pyproject.toml` declares
-`iil-ingest[pdf,ocr] @ git+https://github.com/achimdehnert/iil-ingest.git` and needs
-`allow-direct-references = true` to build.
+**Evidence:** `pyproject.toml` declared
+`iil-ingest[pdf,ocr] @ git+https://github.com/achimdehnert/iil-ingest.git` inside `[web]`,
+so `pip install iil-reflex[web]` from PyPI depended on GitHub being reachable — a known
+supply-chain/reproducibility smell for a published package.
 
-**Why:** `pip install iil-reflex[web]` from PyPI then depends on GitHub being reachable
-and the branch existing — it cannot be mirrored, pinned by hash in a lockfile cleanly,
-or installed in an air-gapped CI. Direct VCS refs in a *published* package are a known
-supply-chain/reproducibility smell.
+**Done (option b — split the extra):** PDF/OCR moved to a new `[web-pdf]` extra; the Git
+reference now lives only there. `pip install iil-reflex[web]` (httpx + SDS scraping)
+installs cleanly from PyPI with no VCS dependency; PDF extraction is opt-in via
+`[web-pdf]`. Verified against the built wheel metadata (`[web]` has no Git requirement).
 
-**The call:** either (a) publish `iil-ingest` to PyPI and pin a version, or (b) split
-PDF/OCR into a deeper-optional extra so the common `[web]` path (httpx + SDS scraping)
-has no VCS dependency.
+**Still open (option a, optional):** publishing `iil-ingest` to PyPI would let `[web-pdf]`
+pin a version instead of a Git ref — a separate decision for the iil-ingest repo.
 
 ---
 
@@ -105,5 +105,5 @@ fail against the old `logger.info` code).
 
 ---
 
-*R1, R3, R4, and R5 are done. Only R2 remains (needs a product/maintainer decision
-on the `iil-ingest` git dependency).*
+*All roadmap items (R1–R5) are addressed. The only remaining optional follow-up is
+publishing `iil-ingest` to PyPI so `[web-pdf]` can pin a version instead of a Git ref.*

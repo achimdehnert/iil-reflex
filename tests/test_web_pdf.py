@@ -14,7 +14,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-# Diese Suite patcht/importiert `ingest.extractors.*` (iil-ingest, optionaler `web`-Extra).
+# Diese Suite patcht/importiert `ingest.extractors.*` (iil-ingest, optionaler `web-pdf`-Extra).
 # Ohne installiertes iil-ingest kann `mock.patch("ingest...")` das Ziel nicht auflösen →
 # das gesamte Modul wird übersprungen, statt zu failen (Convention T-01).
 pytest.importorskip("ingest")
