@@ -34,8 +34,11 @@ full dev-cycle orchestration — as a standalone PyPI package.
 # Core — UC Quality Check, Failure Classifier, Domain Agent (offline rules, no LLM)
 pip install iil-reflex
 
-# Web scraping + SDS lookup (PubChem, GESTIS) + HTTP resilience
+# Web scraping + SDS lookup (PubChem, GESTIS) + HTTP resilience — pure PyPI
 pip install iil-reflex[web]
+
+# Adds PDF/OCR text extraction (iil-ingest)
+pip install iil-reflex[web-pdf]
 
 # LLM-powered research (Groq, OpenAI, Anthropic via litellm)
 pip install iil-reflex[llm]
@@ -114,7 +117,8 @@ reflex scrape https://example.com/article
 reflex scrape https://example.com/report.pdf --json
 ```
 
-Extracts clean text from HTML pages or PDFs. Requires `iil-reflex[web]`.
+Extracts clean text from HTML pages or PDFs. HTML needs `iil-reflex[web]`; PDF
+extraction needs `iil-reflex[web-pdf]`.
 
 ### `reflex init` — Scaffold reflex.yaml (ADR-163)
 
@@ -355,7 +359,8 @@ INFRA_PROBLEM → DevOps → check server/network
 | Extra | Key Packages | Purpose |
 |-------|-------------|---------|
 | *(core)* | `iil-promptfw>=0.7`, `pyyaml>=6.0` | Prompt templates, config |
-| `[web]` | `httpx>=0.27`, `tenacity>=9.0`, `pyrate-limiter>=3.6`, `hishel>=0.0.33`, `beautifulsoup4>=4.12`, `pdfplumber>=0.11` | HTTP client with resilience, SDS APIs, PDF |
+| `[web]` | `httpx>=0.27`, `tenacity>=9.0`, `pyrate-limiter>=3.6`, `hishel>=0.0.33`, `beautifulsoup4>=4.12` | HTTP client with resilience, SDS APIs (PubChem/GESTIS) — installs from PyPI |
+| `[web-pdf]` | `[web]` + `iil-ingest[pdf,ocr]>=0.1.0` | Adds PDF/OCR text extraction |
 | `[llm]` | `litellm>=1.40` | Standalone LLM calls |
 | `[aifw]` | `iil-aifw>=0.9` | Django-integrated LLM routing |
 | `[playwright]` | `playwright>=1.40` | Browser-based testing |
@@ -367,6 +372,8 @@ INFRA_PROBLEM → DevOps → check server/network
 
 | Document | Audience | Link |
 |----------|----------|------|
+| **Architektur & Developer Guide** | Contributors, Integratoren | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| **Development Roadmap** | Maintainer | [docs/ROADMAP.md](docs/ROADMAP.md) |
 | Möglichkeiten & Arbeitsweise | Product Owner, Fachexperten | [→ Outline](https://knowledge.iil.pet/doc/reflex-moglichkeiten-und-arbeitsweise-if47bsKMgP) |
 | Funktionsbeschreibung (technisch) | Entwickler | [→ Outline](https://knowledge.iil.pet/doc/iil-reflex-funktionsbeschreibung-rfOPSaQfxO) |
 | CLI Referenz | Entwickler, DevOps | [→ Outline](https://knowledge.iil.pet/doc/iil-reflex-cli-referenz-alle-befehle-und-beispiele-t7Eg3h8k7b) |

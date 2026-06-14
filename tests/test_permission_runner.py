@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import sys
+from unittest.mock import MagicMock, patch
+
 import pytest
 
 from reflex.permission_runner import PermissionReport, PermissionRunner, ReflexTestUser
@@ -188,3 +191,173 @@ class TestPermissionRunnerOutput:
         assert data["total"] == 1
         assert data["passed"] == 1
         assert data["results"][0]["url"] == "/a"
+
+    def test_print_report_should_not_raise(self):
+        # Regression: trailing logger.info() with no args raised TypeError.
+        report = PermissionReport(
+            base_url="http://x",
+            results=[PermissionTestResult(url="/a", role="admin", expected_status=200, actual_status=403)],
+            total=1,
+            passed=0,
+            failed=1,
+        )
+        PermissionRunner.print_report(report)
+
+    def test_print_report_writes_to_stdout(self, capsys):
+        # Regression: report used logger.info, which is silent without a handler.
+        report = PermissionReport(
+            base_url="http://x",
+            results=[PermissionTestResult(url="/a", role="admin", expected_status=200, actual_status=403)],
+            total=1,
+            passed=0,
+            failed=1,
+        )
+        PermissionRunner.print_report(report)
+        out = capsys.readouterr().out
+        assert "REFLEX Permission Matrix Test Report" in out
+        assert "/a" in out
+        assert "FAILURES" in out
+
+
+def _user(name: str = "admin") -> ReflexTestUser:
+    return ReflexTestUser(username=name, password=f"{name}123")
+
+
+class TestFromYamlStatusParsing:
+    def test_should_parse_string_status_with_comment(self, tmp_path):
+        yaml_file = tmp_path / "reflex.yaml"
+        yaml_file.write_text('permissions_matrix:\n  /x/:\n    anonymous: "200  # ok"\n')
+        runner = PermissionRunner.from_yaml(yaml_file)
+        assert runner.permissions_matrix["/x/"]["anonymous"] == 200
+
+    def test_should_drop_non_numeric_string_status(self, tmp_path):
+        yaml_file = tmp_path / "reflex.yaml"
+        yaml_file.write_text('permissions_matrix:\n  /x/:\n    anonymous: "n/a"\n')
+        runner = PermissionRunner.from_yaml(yaml_file)
+        assert "anonymous" not in runner.permissions_matrix["/x/"]
+
+
+class TestRunAll:
+    def test_should_aggregate_anonymous_and_authenticated(self):
+        runner = PermissionRunner(
+            base_url="http://x",
+            test_users={"admin": _user()},
+            permissions_matrix={"/a": {"anonymous": 200, "admin": 200}},
+        )
+        with (
+            patch.object(runner, "_test_anonymous", return_value=200),
+            patch.object(runner, "_create_authenticated_session", return_value=MagicMock()),
+            patch.object(runner, "_test_authenticated", return_value=200),
+        ):
+            report = runner.run_all()
+        assert report.total == 2
+        assert report.passed == 2
+        assert report.all_passed
+
+    def test_should_reuse_session_across_urls(self):
+        runner = PermissionRunner(
+            base_url="http://x",
+            test_users={"admin": _user()},
+            permissions_matrix={"/a": {"admin": 200}, "/b": {"admin": 200}},
+        )
+        with (
+            patch.object(runner, "_create_authenticated_session", return_value=MagicMock()) as mk_sess,
+            patch.object(runner, "_test_authenticated", return_value=200),
+        ):
+            runner.run_all()
+        mk_sess.assert_called_once()
+
+    def test_should_skip_role_when_session_creation_fails(self):
+        runner = PermissionRunner(
+            base_url="http://x",
+            test_users={},
+            permissions_matrix={"/a": {"admin": 200}},
+        )
+        with patch.object(runner, "_create_authenticated_session", return_value=None):
+            report = runner.run_all()
+        assert report.total == 0
+
+    def test_should_count_failures(self):
+        runner = PermissionRunner(
+            base_url="http://x",
+            test_users={},
+            permissions_matrix={"/a": {"anonymous": 200}},
+        )
+        with patch.object(runner, "_test_anonymous", return_value=403):
+            report = runner.run_all()
+        assert report.failed == 1
+        assert not report.all_passed
+
+    def test_should_raise_when_httpx_missing(self, monkeypatch):
+        monkeypatch.setitem(sys.modules, "httpx", None)
+        runner = PermissionRunner(base_url="http://x", test_users={}, permissions_matrix={"/a": {"anonymous": 200}})
+        with pytest.raises(ImportError):
+            runner.run_all()
+
+
+class TestAnonymousAndAuthenticatedRequests:
+    def test_should_return_status_for_anonymous(self):
+        runner = PermissionRunner("http://x", {}, {})
+        httpx_mod = MagicMock()
+        client = MagicMock()
+        client.get.return_value = MagicMock(status_code=200)
+        httpx_mod.Client.return_value.__enter__.return_value = client
+        assert runner._test_anonymous("/a", httpx_mod) == 200
+
+    def test_should_return_zero_on_anonymous_error(self):
+        runner = PermissionRunner("http://x", {}, {})
+        httpx_mod = MagicMock()
+        httpx_mod.Client.side_effect = RuntimeError("boom")
+        assert runner._test_anonymous("/a", httpx_mod) == 0
+
+    def test_should_return_status_for_authenticated(self):
+        runner = PermissionRunner("http://x", {}, {})
+        session = MagicMock()
+        session.get.return_value = MagicMock(status_code=403)
+        assert runner._test_authenticated("/a", session) == 403
+
+    def test_should_return_zero_on_authenticated_error(self):
+        runner = PermissionRunner("http://x", {}, {})
+        session = MagicMock()
+        session.get.side_effect = RuntimeError("boom")
+        assert runner._test_authenticated("/a", session) == 0
+
+
+class TestCreateAuthenticatedSession:
+    def _httpx_with_session(self, csrf="tok", login_status=302):
+        httpx_mod = MagicMock()
+        session = MagicMock()
+        httpx_mod.Client.return_value = session
+        login_resp = MagicMock(text="")
+        login_resp.cookies.get.return_value = csrf
+        session.get.return_value = login_resp
+        session.post.return_value = MagicMock(status_code=login_status)
+        return httpx_mod, session
+
+    def test_should_return_none_without_user(self):
+        runner = PermissionRunner("http://x", {}, {})
+        assert runner._create_authenticated_session("ghost", MagicMock()) is None
+
+    def test_should_create_session_on_successful_login(self):
+        runner = PermissionRunner("http://x", {"admin": _user()}, {})
+        httpx_mod, session = self._httpx_with_session()
+        assert runner._create_authenticated_session("admin", httpx_mod) is session
+        session.post.assert_called_once()
+
+    def test_should_return_none_when_no_csrf(self):
+        runner = PermissionRunner("http://x", {"admin": _user()}, {})
+        httpx_mod, session = self._httpx_with_session(csrf="")
+        assert runner._create_authenticated_session("admin", httpx_mod) is None
+        session.close.assert_called_once()
+
+    def test_should_return_none_on_login_failure_status(self):
+        runner = PermissionRunner("http://x", {"admin": _user()}, {})
+        httpx_mod, session = self._httpx_with_session(login_status=401)
+        assert runner._create_authenticated_session("admin", httpx_mod) is None
+        session.close.assert_called_once()
+
+    def test_should_return_none_on_exception(self):
+        runner = PermissionRunner("http://x", {"admin": _user()}, {})
+        httpx_mod = MagicMock()
+        httpx_mod.Client.side_effect = RuntimeError("boom")
+        assert runner._create_authenticated_session("admin", httpx_mod) is None

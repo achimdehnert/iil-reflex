@@ -216,7 +216,11 @@ class CycleRunner:
             # All passed
             result.final_status = PhaseStatus.PASSED
             break
-        else:
+
+        # Any exit other than a clean PASSED break means the cycle failed.
+        # (A failing phase on the last iteration breaks out of the loop, so the
+        # for/else clause never fired and final_status would stay PENDING.)
+        if result.final_status != PhaseStatus.PASSED:
             result.final_status = PhaseStatus.FAILED
 
         result.total_duration_seconds = time.time() - start_time
@@ -477,21 +481,25 @@ class CycleRunner:
 
     @staticmethod
     def print_result(result: CycleResult) -> None:
-        """Print human-readable cycle result."""
-        logger.info(f"\n{'=' * 70}")
-        logger.info(f"  REFLEX Development Cycle Report — {result.uc_slug}")
-        logger.info(f"{'=' * 70}")
-        logger.info(f"  Iteration:  {result.iteration}")
-        logger.info(f"  Duration:   {result.total_duration_seconds:.1f}s")
-        logger.info(f"  Status:     {result.final_status.value}")
-        logger.info(f"{'=' * 70}\n")
-        logger.info(result.phase_summary())
+        """Print human-readable cycle result to stdout.
+
+        Uses print() (not logger.info) because this is user-facing report output:
+        the CLI configures no logging handler, so logger.info would be silent.
+        """
+        print(f"\n{'=' * 70}")
+        print(f"  REFLEX Development Cycle Report — {result.uc_slug}")
+        print(f"{'=' * 70}")
+        print(f"  Iteration:  {result.iteration}")
+        print(f"  Duration:   {result.total_duration_seconds:.1f}s")
+        print(f"  Status:     {result.final_status.value}")
+        print(f"{'=' * 70}\n")
+        print(result.phase_summary())
 
         if result.failed_phases:
-            logger.info("\n  ❌ Failed Phases:")
+            print("\n  ❌ Failed Phases:")
             for p in result.failed_phases:
-                logger.info(f"    {p.phase.value}:")
+                print(f"    {p.phase.value}:")
                 for e in p.errors[:3]:
-                    logger.info(f"      - {e}")
+                    print(f"      - {e}")
 
-        logger.info()
+        print()

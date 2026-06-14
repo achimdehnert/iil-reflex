@@ -2,11 +2,6 @@
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[tool.hatch.metadata]
-# web-Extra hat eine direkte Git-Referenz (iil-ingest, nicht auf PyPI) — hatchling
-# verlangt dafür ein explizites Opt-in, sonst schlägt die Metadata-Generierung fehl.
-allow-direct-references = true
-
 [project]
 name = "iil-reflex"
 version = "0.5.0"
@@ -21,7 +16,6 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Topic :: Software Development :: Quality Assurance",
     "Topic :: Software Development :: Testing",
@@ -42,7 +36,12 @@ web = [
     "hishel>=0.0.33",
     "pyrate-limiter>=3.6",
     "beautifulsoup4>=4.12",
-    "iil-ingest[pdf,ocr] @ git+https://github.com/achimdehnert/iil-ingest.git",
+]
+# PDF/OCR text extraction via iil-ingest (from PyPI). Split out of [web] so the
+# common path (httpx + SDS scraping) stays lean for users who don't need PDFs.
+web-pdf = [
+    "iil-reflex[web]",
+    "iil-ingest[pdf,ocr]>=0.1.0",
 ]
 dev = [
     "pytest>=8.0",
@@ -56,7 +55,7 @@ dev = [
     "beautifulsoup4>=4.12",
 ]
 all = [
-    "iil-reflex[llm,aifw,playwright,web,dev]",
+    "iil-reflex[llm,aifw,playwright,web,web-pdf,dev]",
 ]
 
 [project.scripts]
@@ -75,7 +74,7 @@ packages = ["reflex"]
 
 
 [tool.ruff]
-target-version = "py311"
+target-version = "py312"
 line-length = 120
 
 [tool.ruff.lint]
