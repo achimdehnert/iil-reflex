@@ -67,3 +67,28 @@ Die Original-Idee war richtig in der *Diagnose*: ein „Evidenz-Qualitäts"-Tool
 - **Kill-Gate (messbar):** Ist `test_web_ssrf_integration.py` nicht in **1 PR deterministisch grün** (3× CI-Re-Run ohne Flake), oder kostet der optionale Boot-Test (#3) **> 2 s** CI-Zeit → Integrations-Schiene verwerfen, nur CLI-Smoke (#2) behalten.
 - **Exception-Budget:** bis `review_by: 2026-07-15`. Ohne Pflege → Auto-Sunset (I3).
 - **Enforcement-Ehrlichkeit:** Dieses Doc *schreibt* `review_by`/`kill_criteria`, *erzwingt* sie nicht — sie wirken erst, wenn ein Lifecycle-Gate sie liest. Bis dahin Review-Gate, kein Exit-Code.
+
+---
+
+## Adversarial-Review-Update (2026-06-14, frischer Sonnet-Agent, Code-belegt)
+Ein unabhängiger Review (Judge≠Defendant) hat drei *materielle* Schwächen gefunden, alle gegen den Code verifiziert. Die folgenden Zeilen **superseden** die Erst-Entwurf-Entscheidungen.
+
+| Punkt | Befund (verifiziert) | Wirkung auf Entscheidung |
+|-------|----------------------|--------------------------|
+| **AD-1 → revidiert D1** | `controlling_plugin.check()` prüft `.reflex/baseline.json` (`controlling_plugin.py:29`) — **kein** Hub-Artefakt; ebenso `adr`/`uc`/`security`-Secret-Scan laufen auf jeder Repo. Nur `repo`/`compose`/`port`/`infra` sind hub-shaped. | **D1 von „NO-GO komplett" → „Teil-Kill":** `reflex review controlling,adr,uc,security iil-reflex` ist **viables Dogfooding** (feuert real `controlling.no_baseline` auf diesem Repo). Nur die hub-Plugins ausschließen, nicht alles. Mein A1 hat vom `repo_plugin` über-verallgemeinert. |
+| **AD-3 → erweitert D2** | `fetch()` ist geschützt (`web.py:298` `_assert_public_url` + `follow_redirects=False`), aber **`search_web()` (`web.py:376`) ruft `_retry_get` direkt** mit Client-`follow_redirects=True` (`web.py:269`) → **ungeschützter SSRF-Pfad**, vom Konzept übersehen. | **D2-Scope erweitern:** nicht nur der `fetch()`-Redirect-Hop, sondern auch `search_web` — entweder `_guarded_get` einziehen + testen, ODER explizit als „nur fixe DDG-URL" akzeptieren + testen, dass keine andere Outbound-URL rausgeht. **Eigenes Security-Item, ggf. Fix-PR vor Test.** |
+| **AD-2 → Framing-Fix D2** | Der respx-Test ist konstruierbar, aber `assert not metadata_route.called` ist trivial wahr, weil `_assert_public_url` **synchron raised, bevor** der 2. Request geht — er beweist „Guard feuert vor 2. httpx-Call", nicht „Guard fing einen Live-Hop ab". | Test bleibt wertvoll, aber **Assertion präzise framen** (Guard raised vor 2. Call), nicht „intercepted live hop". |
+| **AD-5 → präzisiert D3** | `tests/test_cli.py` ruft `main()` schon **in-process** für die meisten Subcommands. | **D3 nur wertvoll als SUBPROCESS-Test des installierten Entry-Points** (`subprocess.run(["reflex", …])`) — fängt kaputten `pyproject`-Entry-Point/`__main__`, was in-process unsichtbar ist. In-process-Variante = Duplikat → verworfen. |
+| AD-4 (MINOR) | Kill-Gate (`3× ohne Flake`, `>2s`) hat keine Automation → Wunsch, kein Gate. | als Wunsch markiert; echtes Gate bräuchte Timing-Instrumentierung (Backlog). |
+| AD-6 (MINOR) | Boot-Test (#3) testet eine **stdlib**-Eigenschaft (`HTTPServer` bindet 127.0.0.1), kein REFLEX-Verhalten. | **aus MVC gestrichen** (war schon optional). |
+
+### Revidierte Entscheidungen
+- **D1' = Teil-GO:** `reflex review controlling,adr,uc,security iil-reflex` als **non-blocking INFO-CI-Step** (OOB-2) — echtes Dogfooding ohne Hub-Theater.
+- **D2' = GO, erweitert:** Redirect-Hop-SSRF-Test für `fetch()` **+ `search_web`-SSRF-Pfad** (Fix-Entscheidung: Guard einziehen oder fixe-URL-Akzeptanz testen).
+- **D3' = GO als Subprocess:** `subprocess.run(["reflex", <cmd>])` gegen Fixture, nicht in-process `main()`.
+
+### OOB aus dem Review (Backlog)
+- **OOB-1:** Property-based (Hypothesis) auf `_assert_public_url`/`_check_ip` (`web.py:80-90`) — RFC1918/link-local/loopback *kategorisch* statt 5 Beispiele. ~10 Zeilen, null Flake.
+- **OOB-3:** Mutation-Testing (`mutmut`) gezielt auf `web.py:80-90` — beweist, dass die Tests die Guard-Bedingungen *fangen* (adressiert direkt die Kern-Angst „Refactor entfernt Guard, kein Test failt").
+
+> **Lehre (meta):** Das Konzept hat selbst den Fehler begangen, vor dem seine Erdung warnt — vom `repo_plugin` auf „alle Plugins" über-verallgemeinert und damit eine viable Capability vorschnell gekillt. Der frische-Kontext-Review fing es. Bestätigt den Wert von Judge≠Defendant auch auf Konzept-Ebene.
