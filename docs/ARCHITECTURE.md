@@ -234,7 +234,7 @@ to stub HTTP without real calls.
 | `llm` | `litellm` | LLM-backed research, `LiteLLMProvider` |
 | `aifw` | `iil-aifw` | Django DB-routed LLM (`AifwProvider`) |
 | `web` | `httpx`, `tenacity`, `hishel`, `pyrate-limiter`, `bs4` | scraping, PubChem/GESTIS SDS (installs from PyPI) |
-| `web-pdf` | `[web]` + `iil-ingest[pdf,ocr]` (Git) | PDF/OCR text extraction |
+| `web-pdf` | `[web]` + `iil-ingest[pdf,ocr]>=0.1.0` | PDF/OCR text extraction |
 | `playwright` | `playwright` | browser-driven frontend tests |
 | `metrics` | `psycopg[binary]` | review-metrics persistence |
 | `dev` | pytest, ruff, respx, … | the test/lint toolchain |

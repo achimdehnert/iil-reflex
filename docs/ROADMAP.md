@@ -32,20 +32,25 @@ raised from 75% to **85%** to lock these gains in.
 
 ---
 
-## R2 · Make `[web]` installable from PyPI without GitHub ✅ done (option b)
+## R2 · Make the package installable from PyPI without GitHub ✅ done (both options)
 
 **Evidence:** `pyproject.toml` declared
 `iil-ingest[pdf,ocr] @ git+https://github.com/achimdehnert/iil-ingest.git` inside `[web]`,
 so `pip install iil-reflex[web]` from PyPI depended on GitHub being reachable — a known
 supply-chain/reproducibility smell for a published package.
 
-**Done (option b — split the extra):** PDF/OCR moved to a new `[web-pdf]` extra; the Git
-reference now lives only there. `pip install iil-reflex[web]` (httpx + SDS scraping)
-installs cleanly from PyPI with no VCS dependency; PDF extraction is opt-in via
-`[web-pdf]`. Verified against the built wheel metadata (`[web]` has no Git requirement).
+**Correction:** the original premise that "iil-ingest is not on PyPI" was **wrong** —
+verified via the PyPI JSON API that `iil-ingest` 0.1.0 (with `pdf`/`ocr` extras) is
+published. The cheapest check (`pip index` / PyPI API) beat the assumption.
 
-**Still open (option a, optional):** publishing `iil-ingest` to PyPI would let `[web-pdf]`
-pin a version instead of a Git ref — a separate decision for the iil-ingest repo.
+**Done:**
+1. (option b) PDF/OCR split into a `[web-pdf]` extra so `[web]` stays lean.
+2. (option a) `[web-pdf]` references `iil-ingest[pdf,ocr]>=0.1.0` **from PyPI**, not the
+   Git URL. The `allow-direct-references` opt-in is removed. The **entire package now
+   installs from PyPI with no VCS reference** — verified against the wheel metadata
+   (zero `git+` requirements).
+
+**Optional future:** keep the iil-ingest version pin current as that package releases.
 
 ---
 
@@ -105,5 +110,5 @@ fail against the old `logger.info` code).
 
 ---
 
-*All roadmap items (R1–R5) are addressed. The only remaining optional follow-up is
-publishing `iil-ingest` to PyPI so `[web-pdf]` can pin a version instead of a Git ref.*
+*All roadmap items (R1–R5) are done. The package has zero VCS dependencies and
+installs entirely from PyPI.*
