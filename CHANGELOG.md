@@ -8,6 +8,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Fixed
+- **`PermissionRunner.run_all` crashed with `AttributeError` after a failed login**:
+  a role whose session could not be created was cached as `None`, then the `finally`
+  block called `None.close()`. Now `None` sessions are skipped on close. Surfaced
+  while raising permission-runner coverage.
+- **`reflex infra` error paths crashed with `TypeError`**: three
+  `logger.error(..., file=sys.stderr)` calls passed an invalid `file=` kwarg to
+  `logging` (leftover from a `print`→`logger` conversion). Removed the kwarg, so the
+  "ports.yaml missing", "no repo", and "repo not found" paths now return `1` cleanly.
+- **`PermissionRunner.print_report` crashed with `TypeError`** on its trailing
+  `logger.info()` call (no message argument). Now `logger.info("")`.
 - **`CycleRunner.run_full_cycle` left `final_status = PENDING` on a fully failed
   cycle** instead of `FAILED`: a phase failing on the last iteration `break`s out
   of the loop, so the `for/else` clause that set `FAILED` never fired. Now any
@@ -21,6 +31,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   the flat module. Removing it deletes unreachable code (was at 0% coverage).
 
 ### Added
+- **PEP-561 `py.typed` marker** — the package is fully type-annotated; downstream
+  `mypy`/`pyright` users now actually receive the types (verified present in the wheel).
+- Test coverage for `reflex.permission_runner` raised 47% → 100%: `run_all`
+  orchestration (anonymous + authenticated, session reuse, failed-login skip,
+  missing-`httpx`), the request helpers, `_create_authenticated_session` (all login
+  outcomes), YAML status parsing, and `print_report`.
+- Test coverage for `reflex.infra` raised 22% → 95%: compose DB/healthcheck
+  extraction, `get_all_services`, `_run_ssh` + `get_live_status` (mocked SSH), the
+  format helpers, and `cmd_infra` (incl. the fixed error paths and git auto-detect).
 - Test coverage for `reflex.cycle.CycleRunner` raised 50% → 98%: the
   `run_full_cycle` orchestration loop (pass / skip / retry / fail paths), phase
   runners (`_run_backend_tests` timeout & not-found, `_run_frontend_verify`,

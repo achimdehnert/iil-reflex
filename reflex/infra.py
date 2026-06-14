@@ -456,7 +456,7 @@ def cmd_infra(args) -> int:
     if args.all:
         services = get_all_services(github_dir)
         if not services:
-            logger.error("ERROR: Could not load ports.yaml", file=__import__("sys").stderr)
+            logger.error("ERROR: Could not load ports.yaml")
             return 1
         if args.json:
             if live_mode:
@@ -484,12 +484,12 @@ def cmd_infra(args) -> int:
             ).stdout.strip()
             repo = Path(toplevel).name
         except Exception:
-            logger.error("ERROR: No repo specified and not in a git repo", file=__import__("sys").stderr)
+            logger.error("ERROR: No repo specified and not in a git repo")
             return 1
 
     info = get_service_info(repo, github_dir)
     if not info:
-        logger.error(f"ERROR: '{repo}' not found in ports.yaml", file=__import__("sys").stderr)
+        logger.error(f"ERROR: '{repo}' not found in ports.yaml")
         return 1
 
     if args.json:
