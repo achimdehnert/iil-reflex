@@ -5,7 +5,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [Unreleased]
+## [0.6.0] — 2026-06-14
 
 ### Fixed
 - **SSH host-key policy hardened** (`reflex infra --live`): `_run_ssh` used
