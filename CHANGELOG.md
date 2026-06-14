@@ -8,6 +8,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Fixed
+- **CLI report output was invisible** (`reflex infra`, plus the `print_report` /
+  `print_result` helpers): the reports were written via `logger.info`, but the package
+  configures no logging handler, so at the default `WARNING` level they produced **no
+  output at all** — e.g. `reflex infra <repo>` printed nothing. User-facing report
+  output now uses `print()` (stdout) and error messages use `print(file=sys.stderr)`,
+  matching the rest of the CLI; diagnostic `logger` calls are unchanged.
 - **`PermissionRunner.run_all` crashed with `AttributeError` after a failed login**:
   a role whose session could not be created was cached as `None`, then the `finally`
   block called `None.close()`. Now `None` sessions are skipped on close. Surfaced

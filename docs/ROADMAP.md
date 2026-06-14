@@ -76,17 +76,21 @@ into a clean venv, and smoke-tests it (`import reflex`, `reflex --help`, and ass
 
 ---
 
-## R5 · Unify the two report-printing helpers 🟢
+## R5 · Unify the report-printing helpers ✅ done
 
-**Evidence:** `platform_runner.print_report` writes via `print()`; `cycle.print_result`
-writes the equivalent report via `logger.info()`.
+**Evidence:** `platform_runner.print_report` wrote via `print()`, but
+`cycle.print_result`, `permission_runner.print_report`, and `infra.cmd_infra` wrote
+their reports via `logger.info()`.
 
-**Why:** for output the user explicitly requested (`reflex platform`, `reflex cycle`),
-`print` is correct — `logging.info` is silent unless a handler is configured. The two
-helpers should agree; today one of them can swallow its report depending on logging setup.
+**Why it was a real bug, not just style:** the package configures **no logging handler**
+(verified — no `basicConfig`/`setLevel` anywhere), so the root logger sits at `WARNING`
+and every `logger.info` report line was silently dropped. `reflex infra <repo>` — a
+CLI-wired command whose whole job is to print an info card — produced **no output**.
 
-**The call:** standardise on `print` for user-facing reports (keep `logging` for
-diagnostics), and add one regression test that asserts the report reaches stdout.
+**Done:** user-facing report output now uses `print()` (stdout) and error messages use
+`print(file=sys.stderr)`, matching the rest of the CLI; diagnostic `logger` calls are
+untouched. Added `capsys` regression tests asserting each report reaches stdout (they
+fail against the old `logger.info` code).
 
 ---
 
@@ -101,4 +105,5 @@ diagnostics), and add one regression test that asserts the report reaches stdout
 
 ---
 
-*R1, R3, and R4 are done. R2 and R5 remain and need a product/maintainer decision.*
+*R1, R3, R4, and R5 are done. Only R2 remains (needs a product/maintainer decision
+on the `iil-ingest` git dependency).*

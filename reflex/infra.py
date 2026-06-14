@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import sys
 from pathlib import Path
 
 import yaml
@@ -456,17 +457,17 @@ def cmd_infra(args) -> int:
     if args.all:
         services = get_all_services(github_dir)
         if not services:
-            logger.error("ERROR: Could not load ports.yaml")
+            print("ERROR: Could not load ports.yaml", file=sys.stderr)
             return 1
         if args.json:
             if live_mode:
                 for svc in services:
                     svc["live"] = get_live_status(svc)
-            logger.info(json.dumps(services, indent=2, ensure_ascii=False))
+            print(json.dumps(services, indent=2, ensure_ascii=False))
         elif live_mode:
-            logger.info(format_all_live_table(services, github_dir))
+            print(format_all_live_table(services, github_dir))
         else:
-            logger.info(format_all_table(services))
+            print(format_all_table(services))
         return 0
 
     # Single repo lookup
@@ -484,23 +485,23 @@ def cmd_infra(args) -> int:
             ).stdout.strip()
             repo = Path(toplevel).name
         except Exception:
-            logger.error("ERROR: No repo specified and not in a git repo")
+            print("ERROR: No repo specified and not in a git repo", file=sys.stderr)
             return 1
 
     info = get_service_info(repo, github_dir)
     if not info:
-        logger.error(f"ERROR: '{repo}' not found in ports.yaml")
+        print(f"ERROR: '{repo}' not found in ports.yaml", file=sys.stderr)
         return 1
 
     if args.json:
         data = info
         if live_mode:
             data["live"] = get_live_status(info)
-        logger.info(json.dumps(data, indent=2, ensure_ascii=False))
+        print(json.dumps(data, indent=2, ensure_ascii=False))
     elif live_mode:
         live = get_live_status(info)
-        logger.info(format_live_card(info, live))
+        print(format_live_card(info, live))
     else:
-        logger.info(format_info_card(info))
+        print(format_info_card(info))
 
     return 0
