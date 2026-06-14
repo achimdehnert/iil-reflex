@@ -191,7 +191,8 @@ def get_provider(
 
             logger.debug("Auto-detected aifw — using AifwProvider")
             return AifwProvider(**kwargs)
-        except (ImportError, Exception):
+        except Exception:
+            # Any aifw/django import or provider-init failure → fall back to litellm.
             logger.debug("aifw not available — falling back to LiteLLMProvider")
             return LiteLLMProvider(**kwargs)
 
