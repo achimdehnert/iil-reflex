@@ -37,7 +37,7 @@ pip install iil-reflex
 # Web scraping + SDS lookup (PubChem, GESTIS) + HTTP resilience — pure PyPI
 pip install iil-reflex[web]
 
-# Adds PDF/OCR text extraction (pulls iil-ingest from Git, not PyPI)
+# Adds PDF/OCR text extraction (iil-ingest)
 pip install iil-reflex[web-pdf]
 
 # LLM-powered research (Groq, OpenAI, Anthropic via litellm)
@@ -360,7 +360,7 @@ INFRA_PROBLEM → DevOps → check server/network
 |-------|-------------|---------|
 | *(core)* | `iil-promptfw>=0.7`, `pyyaml>=6.0` | Prompt templates, config |
 | `[web]` | `httpx>=0.27`, `tenacity>=9.0`, `pyrate-limiter>=3.6`, `hishel>=0.0.33`, `beautifulsoup4>=4.12` | HTTP client with resilience, SDS APIs (PubChem/GESTIS) — installs from PyPI |
-| `[web-pdf]` | `[web]` + `iil-ingest[pdf,ocr]` (Git) | Adds PDF/OCR text extraction |
+| `[web-pdf]` | `[web]` + `iil-ingest[pdf,ocr]>=0.1.0` | Adds PDF/OCR text extraction |
 | `[llm]` | `litellm>=1.40` | Standalone LLM calls |
 | `[aifw]` | `iil-aifw>=0.9` | Django-integrated LLM routing |
 | `[playwright]` | `playwright>=1.40` | Browser-based testing |

@@ -68,11 +68,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   handling of a missing `psycopg` driver.
 
 ### Changed
-- **Split PDF/OCR into a new `[web-pdf]` extra.** The `iil-ingest` Git dependency
-  (not on PyPI) moved out of `[web]` into `[web-pdf]`, so `pip install iil-reflex[web]`
-  (httpx + SDS scraping) now installs **cleanly from PyPI** with no VCS reference. PDF
-  text extraction is opt-in via `pip install iil-reflex[web-pdf]`. Verified the wheel
-  metadata: `[web]` carries no Git requirement; `[web-pdf]` pulls `[web]` + iil-ingest.
+- **Split PDF/OCR into a new `[web-pdf]` extra, and pinned `iil-ingest` from PyPI.**
+  PDF/OCR moved out of `[web]` into `[web-pdf]`, so `pip install iil-reflex[web]`
+  (httpx + SDS scraping) stays lean. `iil-ingest[pdf,ocr]>=0.1.0` is now referenced
+  from **PyPI** (it is published there) instead of a `git+https` URL — so the
+  `allow-direct-references` opt-in is gone and **the whole package, including
+  `[web-pdf]`, installs from PyPI with no VCS reference** (verified against the wheel
+  metadata: zero `git+` requirements).
 - Python version metadata unified to **3.12** (matches `requires-python>=3.12`):
   dropped the stale `Python :: 3.11` classifier and bumped `ruff target-version`
   from `py311` to `py312`.
