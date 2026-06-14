@@ -7,12 +7,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **`CycleRunner.run_full_cycle` left `final_status = PENDING` on a fully failed
+  cycle** instead of `FAILED`: a phase failing on the last iteration `break`s out
+  of the loop, so the `for/else` clause that set `FAILED` never fired. Now any
+  non-`PASSED` exit is marked `FAILED`. Surfaced while raising cycle test coverage.
+- **`CycleRunner.print_result` crashed with `TypeError`** on its trailing
+  `logger.info()` call (no message argument). Now `logger.info("")`.
+
 ### Removed
 - **Dead `reflex/dashboard.py`** (893 LOC): shadowed by the `reflex/dashboard/`
   package since the 2026-04-18 split — Python always imported the package, never
   the flat module. Removing it deletes unreachable code (was at 0% coverage).
 
 ### Added
+- Test coverage for `reflex.cycle.CycleRunner` raised 50% → 98%: the
+  `run_full_cycle` orchestration loop (pass / skip / retry / fail paths), phase
+  runners (`_run_backend_tests` timeout & not-found, `_run_frontend_verify`,
+  `_run_permission_tests`), `_classify_failure`, `_login_session`, and
+  `print_result`.
 - Test coverage for `reflex.review.metrics.MetricsWriter` (was 0%): no-URL
   degradation, env-var precedence, row writing, table creation, and graceful
   handling of a missing `psycopg` driver.
