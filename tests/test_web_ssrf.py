@@ -88,3 +88,29 @@ class TestSearchWebSSRF:
             provider.close()
         assert results == []  # BlockedURLError is caught by search_web → empty result
         assert not meta.called  # guard blocked the hop before the metadata IP was contacted
+
+
+class TestFetchSSRF:
+    """fetch() must block an open-redirect hop to a private IP (proves the
+    per-hop guard claim from PR #6 / KONZ-001 D2')."""
+
+    def test_should_block_redirect_hop_to_metadata_ip(self, monkeypatch):
+        import respx
+
+        monkeypatch.setattr(
+            web_mod.socket,
+            "getaddrinfo",
+            lambda host, *a, **k: [(2, 1, 6, "", ("93.184.216.34", 0))],
+        )
+        with respx.mock(assert_all_called=False):
+            respx.get("https://evil.test/").respond(
+                302, headers={"location": "http://169.254.169.254/latest/meta-data/"}
+            )
+            meta = respx.get("http://169.254.169.254/latest/meta-data/").respond(200, text="SECRET")
+            provider = web_mod.HttpxWebProvider()
+            page = provider.fetch("https://evil.test/")
+            provider.close()
+        # fetch() catches the BlockedURLError and returns an Error WebPage.
+        assert page.status_code == 0
+        assert page.title == "Error"
+        assert not meta.called

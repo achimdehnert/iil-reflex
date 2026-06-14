@@ -16,9 +16,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   (applied to the first request only) to carry the query params. Regression test drives
   a 302→metadata-IP redirect and asserts the metadata host is never contacted.
 
----
-
-## [0.6.0] — 2026-06-14
+### Added
+- **Executable SSRF + dogfood verification** (KONZ-iil-reflex-001, from asserted→proven):
+  - `fetch()` open-redirect-hop test — drives `fetch()` through a `302 → 169.254.169.254`
+    and asserts the metadata host is never contacted (proves PR #6's "guard on every
+    redirect hop" claim, which was previously untested).
+  - `tests/test_cli_smoke.py` — end-to-end **subprocess** smoke of the installed
+    `reflex` entry-point (`--help`, offline `classify`, unknown-command rejection);
+    catches broken console-script/`__main__` wiring that in-process `main()` tests miss.
+  - CI **dogfood** step: `reflex review controlling iil-reflex` runs on its own repo
+    (non-blocking, INFO) — the tool is now its own first customer.
 
 ### Fixed
 - **SSH host-key policy hardened** (`reflex infra --live`): `_run_ssh` used

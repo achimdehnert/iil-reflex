@@ -32,6 +32,14 @@ jobs:
       - name: Run tests with coverage gate
         run: pytest tests/ --tb=short --cov=reflex --cov-report=term-missing --cov-fail-under=85
 
+      - name: Dogfood — run reflex on its own repo (non-blocking, INFO)
+        continue-on-error: true
+        run: |
+          # The repo is checked out at $GITHUB_WORKSPACE; its parent is the github-dir
+          # the controlling plugin resolves <repo> against. Non-blocking: surfaces
+          # findings (no baseline, no metrics) without failing the build.
+          reflex review controlling iil-reflex --github-dir "$(dirname "$GITHUB_WORKSPACE")"
+
   package:
     # Verify the package actually builds and installs from the wheel — catches
     # packaging breakage (missing data files, bad metadata) that the test job misses.
