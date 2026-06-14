@@ -344,6 +344,19 @@ class TestCmdInfra:
         with patch("reflex.infra.get_service_info", return_value={"name": "risk-hub", "port_prod": 8090}):
             assert cmd_infra(self._args(repo="risk-hub")) == 0
 
+    def test_should_write_info_card_to_stdout(self, capsys):
+        # Regression: report used logger.info, which is silent without a handler.
+        with patch("reflex.infra.get_service_info", return_value={"name": "risk-hub", "port_prod": 8090}):
+            cmd_infra(self._args(repo="risk-hub"))
+        out = capsys.readouterr().out
+        assert "risk-hub" in out
+        assert "8090" in out
+
+    def test_should_write_error_to_stderr(self, capsys):
+        with patch("reflex.infra.get_service_info", return_value=None):
+            assert cmd_infra(self._args(repo="ghost")) == 1
+        assert "not found" in capsys.readouterr().err
+
     def test_should_output_single_json(self):
         with patch("reflex.infra.get_service_info", return_value={"name": "risk-hub", "port_prod": 8090}):
             assert cmd_infra(self._args(repo="risk-hub", json=True)) == 0

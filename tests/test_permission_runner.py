@@ -203,6 +203,21 @@ class TestPermissionRunnerOutput:
         )
         PermissionRunner.print_report(report)
 
+    def test_print_report_writes_to_stdout(self, capsys):
+        # Regression: report used logger.info, which is silent without a handler.
+        report = PermissionReport(
+            base_url="http://x",
+            results=[PermissionTestResult(url="/a", role="admin", expected_status=200, actual_status=403)],
+            total=1,
+            passed=0,
+            failed=1,
+        )
+        PermissionRunner.print_report(report)
+        out = capsys.readouterr().out
+        assert "REFLEX Permission Matrix Test Report" in out
+        assert "/a" in out
+        assert "FAILURES" in out
+
 
 def _user(name: str = "admin") -> ReflexTestUser:
     return ReflexTestUser(username=name, password=f"{name}123")

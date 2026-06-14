@@ -438,3 +438,15 @@ class TestPrintResult:
             final_status=PhaseStatus.FAILED,
         )
         CycleRunner.print_result(result)
+
+    def test_should_write_report_to_stdout(self, capsys):
+        # Regression: report used logger.info, which is silent without a handler.
+        result = CycleResult(
+            uc_slug="UC-001",
+            phases=[_passed(CyclePhase.BACKEND_TEST)],
+            final_status=PhaseStatus.PASSED,
+        )
+        CycleRunner.print_result(result)
+        out = capsys.readouterr().out
+        assert "REFLEX Development Cycle Report" in out
+        assert "UC-001" in out
