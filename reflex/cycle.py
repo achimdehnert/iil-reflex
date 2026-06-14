@@ -216,7 +216,11 @@ class CycleRunner:
             # All passed
             result.final_status = PhaseStatus.PASSED
             break
-        else:
+
+        # Any exit other than a clean PASSED break means the cycle failed.
+        # (A failing phase on the last iteration breaks out of the loop, so the
+        # for/else clause never fired and final_status would stay PENDING.)
+        if result.final_status != PhaseStatus.PASSED:
             result.final_status = PhaseStatus.FAILED
 
         result.total_duration_seconds = time.time() - start_time
@@ -494,4 +498,4 @@ class CycleRunner:
                 for e in p.errors[:3]:
                     logger.info(f"      - {e}")
 
-        logger.info()
+        logger.info("")
