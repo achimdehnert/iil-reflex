@@ -1,14 +1,24 @@
 # publish.yml — iil-reflex PyPI publish via OIDC Trusted Publishing
 #
 # RELEASE WORKFLOW:
-#   git tag v0.1.0
-#   git push origin v0.1.0
+#   git tag v0.6.0
+#   git push origin v0.6.0
 #   → GitHub Actions builds + publishes (zero tokens needed)
 #
-# PyPI Trusted Publisher:
-#   Repository: achimdehnert/iil-reflex
-#   Workflow:   publish.yml
-#   Environment: pypi
+# REQUIRED ONE-TIME SETUP (PyPI side — NOT automatic):
+#   This workflow only succeeds if a matching Trusted Publisher exists on PyPI.
+#   Configure it on the PROJECT (not an account-level "pending publisher", which is
+#   only for projects that don't exist on PyPI yet):
+#     https://pypi.org/manage/project/iil-reflex/settings/publishing/
+#   The four fields must match the OIDC claims this workflow sends EXACTLY:
+#     Owner:        achimdehnert
+#     Repository:   iil-reflex
+#     Workflow:     publish.yml   ← the file NAME, ".yml" not ".yaml", no path
+#     Environment:  pypi          ← matches `environment: name: pypi` in the publish job
+#   A mismatch in ANY field fails with `invalid-publisher` — tests + build still pass,
+#   only the upload fails. The run log prints the exact claims sent; compare field by
+#   field. Configured + verified for v0.6.0 (2026-06-14); a `.yaml` typo in the
+#   Workflow field had previously blocked it.
 
 name: Publish to PyPI
 
