@@ -8,21 +8,27 @@ Status legend: 🔵 ready (no decision needed) · 🟢 needs a call · 🟡 larg
 
 ---
 
-## R1 · Close the test-coverage debt on risky modules 🟡 (partly done)
+## R1 · Close the test-coverage debt on risky modules ✅ done
 
-**Evidence:** `infra.py` 22%, `__main__.py` 41%, `permission_runner.py` 47%,
-`web.py` 60%, `platform_runner.py` 71% (vs `cycle.py` now 98%, `quality`/`config`/
-`providers` at 100%).
+**Evidence (start):** `infra.py` 22%, `__main__.py` 41%, `permission_runner.py` 47%,
+`web.py` 60%, `platform_runner.py` 71%. Total package coverage 77%.
 
-**Why:** `infra.py` is the largest gap and it runs **SSH + docker** commands — exactly
-the code where an untested edge case does real damage. `permission_runner` is a
-security-adjacent surface (who-can-reach-what) and should be the best-tested module.
+**Done — all five modules lifted, total coverage 77% → 88%:**
 
-**Done:** `permission_runner.py` 47% → **100%** and `infra.py` 22% → **95%** — which
-surfaced and fixed three real bugs (see CHANGELOG: `run_all` `None.close()` crash, the
-`logger.error(file=…)` `TypeError` in `reflex infra`, and the `print_report` crash).
+| Module | Before | After |
+|--------|--------|-------|
+| `permission_runner.py` | 47% | 100% |
+| `infra.py` | 22% | 95% |
+| `cycle.py` | 50% | 98% |
+| `platform_runner.py` | 71% | 99% |
+| `__main__.py` (CLI) | 41% | 99% |
+| `web.py` | 60% | 91% |
 
-**Remaining:** `__main__.py` (41%), `web.py` (60%), `platform_runner.py` (71%).
+The work surfaced and fixed **five real bugs** (see CHANGELOG): `run_all`
+`None.close()` crash, the `logger.error(file=…)` `TypeError` in `reflex infra`,
+two `print_report`/`print_result` trailing-`logger.info()` crashes, and the
+`run_full_cycle` `final_status` never-`FAILED` logic bug. The CI floor (R4) was
+raised from 75% to **85%** to lock these gains in.
 
 ---
 
@@ -95,5 +101,4 @@ diagnostics), and add one regression test that asserts the report reaches stdout
 
 ---
 
-*R3 and R4 are done; R1 is partly done. R2 and R5 remain and need a
-product/maintainer decision.*
+*R1, R3, and R4 are done. R2 and R5 remain and need a product/maintainer decision.*

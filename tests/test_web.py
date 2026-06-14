@@ -443,3 +443,264 @@ class TestHttpxWebProviderCaching:
             transport = p._client._transport
         p.close()
         assert isinstance(transport, httpx.HTTPTransport)
+
+
+# ── Adapter orchestration (injected fake web provider, no network) ─────────
+
+
+class _FakeWeb:
+    """Stand-in for HttpxWebProvider — returns canned pages by URL substring."""
+
+    def __init__(self, routes):
+        # routes: list of (url_substring, status_code, text)
+        self.routes = routes
+        self.calls: list[str] = []
+
+    def fetch(self, url):
+        self.calls.append(url)
+        for substr, status, text in self.routes:
+            if substr in url:
+                return WebPage(url=url, title="", text=text, status_code=status)
+        return WebPage(url=url, title="", text="", status_code=404)
+
+
+class TestPubChemLookup:
+    def _adapter(self, routes):
+        from reflex.web import PubChemAdapter
+
+        return PubChemAdapter(web=_FakeWeb(routes))
+
+    def test_get_cid_returns_first(self):
+        a = self._adapter([("/cids/JSON", 200, json.dumps({"IdentifierList": {"CID": [702, 999]}}))])
+        assert a._get_cid("Ethanol") == 702
+
+    def test_get_cid_none_on_404(self):
+        assert self._adapter([])._get_cid("Nope") is None
+
+    def test_get_cid_none_on_bad_json(self):
+        assert self._adapter([("/cids/JSON", 200, "not json")])._get_cid("x") is None
+
+    def test_get_properties_empty_on_404(self):
+        assert self._adapter([])._get_properties(1) == {}
+
+    def test_get_cas_empty_on_404(self):
+        assert self._adapter([])._get_cas_from_synonyms(1) == ""
+
+    def test_get_ghs_empty_on_404(self):
+        assert self._adapter([])._get_ghs_classification(1) == {}
+
+    def test_lookup_by_name_none_without_cid(self):
+        assert self._adapter([]).lookup_by_name("Nope") is None
+
+    def test_lookup_by_name_builds_full_sds(self):
+        ghs = {
+            "Record": {
+                "Section": [
+                    {
+                        "Section": [
+                            {
+                                "Section": [
+                                    {
+                                        "TOCHeading": "GHS Classification",
+                                        "Information": [
+                                            {
+                                                "Name": "GHS Hazard Statements",
+                                                "Value": {"StringWithMarkup": [{"String": "H225"}]},
+                                            },
+                                            {
+                                                "Name": "Signal",
+                                                "Value": {"StringWithMarkup": [{"String": "Danger"}]},
+                                            },
+                                        ],
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+        synonyms = {"InformationList": {"Information": [{"Synonym": ["Ethanol", "64-17-5"]}]}}
+        routes = [
+            ("/cids/JSON", 200, json.dumps({"IdentifierList": {"CID": [702]}})),
+            ("/property/", 200, json.dumps({"PropertyTable": {"Properties": [{"IUPACName": "ethanol"}]}})),
+            ("/synonyms/", 200, json.dumps(synonyms)),
+            ("pug_view", 200, json.dumps(ghs)),
+        ]
+        sds = self._adapter(routes).lookup_by_name("Ethanol")
+        assert sds is not None
+        assert sds.substance_name == "ethanol"
+        assert sds.cas_number == "64-17-5"
+        assert "H225" in sds.h_statements
+        assert sds.signal_word == "Danger"
+
+    def test_lookup_by_cas_none_without_cid(self):
+        assert self._adapter([]).lookup_by_cas("64-17-5") is None
+
+    def test_lookup_by_cas_injects_cas_when_missing(self):
+        routes = [
+            ("/cids/JSON", 200, json.dumps({"IdentifierList": {"CID": [702]}})),
+            ("/property/", 200, json.dumps({"PropertyTable": {"Properties": [{"IUPACName": "ethanol"}]}})),
+            ("/synonyms/", 200, json.dumps({"InformationList": {"Information": [{"Synonym": ["Ethanol"]}]}})),
+            ("pug_view", 200, "{}"),
+        ]
+        sds = self._adapter(routes).lookup_by_cas("64-17-5")
+        assert sds is not None
+        assert sds.cas_number == "64-17-5"
+
+
+class TestGESTISLookup:
+    def _adapter(self, routes):
+        from reflex.web import GESTISAdapter
+
+        return GESTISAdapter(web=_FakeWeb(routes))
+
+    def test_search_returns_items(self):
+        payload = json.dumps([{"name": "Ethanol", "casNr": "64-17-5", "zvgNr": "011000"}])
+        results = self._adapter([("/search", 200, payload)]).search("ethanol")
+        assert results[0]["cas"] == "64-17-5"
+        assert results[0]["zvg"] == "011000"
+
+    def test_search_empty_on_404(self):
+        assert self._adapter([]).search("x") == []
+
+    def test_search_empty_on_bad_json(self):
+        assert self._adapter([("/search", 200, "not json")]).search("x") == []
+
+    def test_lookup_returns_sds(self):
+        sections = [{"fieldId": "stoffname", "text": "Ethanol"}, {"fieldId": "casnr", "text": "64-17-5"}]
+        gestis = json.dumps({"chapters": [{"sections": sections}]})
+        sds = self._adapter([("/article/", 200, gestis)]).lookup("011000")
+        assert sds is not None
+        assert sds.substance_name == "Ethanol"
+        assert sds.cas_number == "64-17-5"
+
+    def test_lookup_none_on_404(self):
+        assert self._adapter([]).lookup("011000") is None
+
+
+class TestPDFDocumentProvider:
+    def test_read_url_returns_page_text(self):
+        from reflex.web import PDFDocumentProvider
+
+        prov = PDFDocumentProvider(web=_FakeWeb([("doc.pdf", 200, "extracted text")]))
+        assert prov.read_url("https://x/doc.pdf") == "extracted text"
+
+    def test_search_returns_empty(self):
+        from reflex.web import PDFDocumentProvider
+
+        assert PDFDocumentProvider(web=_FakeWeb([])).search("q") == []
+
+    def test_read_file_raises_without_ingest(self, monkeypatch, tmp_path):
+        import sys
+
+        monkeypatch.setitem(sys.modules, "ingest.extractors.pdf", None)
+        from reflex.web import PDFDocumentProvider
+
+        f = tmp_path / "x.pdf"
+        f.write_bytes(b"%PDF-1.4")
+        with pytest.raises(ImportError):
+            PDFDocumentProvider().read_file(str(f))
+
+
+# ── fetch / search_web HTTP paths (respx) ─────────────────────────────────
+
+
+class TestFetchBehaviour:
+    def test_fetch_blocks_disallowed_domain(self):
+        from reflex.web import HttpxWebProvider
+
+        p = HttpxWebProvider(allowed_domains=["example.com"])
+        page = p.fetch("https://evil.com/x")
+        assert page.status_code == 403
+        assert page.title == "Blocked"
+
+    def test_fetch_json_content_type(self):
+        import respx
+
+        from reflex.web import HttpxWebProvider
+
+        with respx.mock:
+            respx.get("https://api.example.com/d").respond(
+                200, json={"a": 1}, headers={"content-type": "application/json"}
+            )
+            p = HttpxWebProvider()
+            page = p.fetch("https://api.example.com/d")
+        p.close()
+        assert page.content_type.startswith("application/json")
+        assert '"a"' in page.text
+
+    def test_fetch_html_extracts_title_and_text(self):
+        import respx
+
+        from reflex.web import HttpxWebProvider
+
+        with respx.mock:
+            respx.get("https://example.com/p").respond(
+                200, html="<html><head><title>T</title></head><body><p>Body</p></body></html>"
+            )
+            p = HttpxWebProvider()
+            page = p.fetch("https://example.com/p")
+        p.close()
+        assert page.title == "T"
+        assert "Body" in page.text
+
+    def test_fetch_returns_error_page_on_exception(self):
+        import respx
+
+        from reflex.web import HttpxWebProvider
+
+        with respx.mock:
+            respx.get("https://example.com/boom").mock(side_effect=ValueError("down"))
+            p = HttpxWebProvider()
+            page = p.fetch("https://example.com/boom")
+        p.close()
+        assert page.status_code == 0
+        assert page.title == "Error"
+
+    def test_search_web_parses_results(self):
+        import respx
+
+        from reflex.web import HttpxWebProvider
+
+        html = '<a class="result__a" href="https://result.com/1">Result One</a>'
+        with respx.mock:
+            respx.get("https://html.duckduckgo.com/html/").respond(200, text=html)
+            p = HttpxWebProvider()
+            results = p.search_web("query", limit=5)
+        p.close()
+        assert len(results) == 1
+        assert results[0].url == "https://result.com/1"
+        assert results[0].title == "Result One"
+
+    def test_search_web_returns_empty_on_error(self):
+        import respx
+
+        from reflex.web import HttpxWebProvider
+
+        with respx.mock:
+            respx.get("https://html.duckduckgo.com/html/").mock(side_effect=ValueError("boom"))
+            p = HttpxWebProvider()
+            results = p.search_web("query")
+        p.close()
+        assert results == []
+
+
+class TestRetryGetRetries:
+    def test_retries_on_timeout_then_succeeds(self):
+        import httpx
+
+        from reflex.web import _retry_get
+
+        calls = {"n": 0}
+
+        class FakeClient:
+            def get(self, url, **kw):
+                calls["n"] += 1
+                if calls["n"] == 1:
+                    raise httpx.TimeoutException("transient")
+                return httpx.Response(200, json={"ok": 1})
+
+        resp = _retry_get(FakeClient(), "https://x.com/d")
+        assert resp.status_code == 200
+        assert calls["n"] == 2  # retried once after the timeout
