@@ -191,9 +191,10 @@ def get_provider(
 
             logger.debug("Auto-detected aifw — using AifwProvider")
             return AifwProvider(**kwargs)
-        except Exception:
+        except Exception as exc:
             # Any aifw/django import or provider-init failure → fall back to litellm.
-            logger.debug("aifw not available — falling back to LiteLLMProvider")
+            # Log the cause so a misconfigured aifw doesn't silently degrade to litellm.
+            logger.debug("aifw not available (%s) — falling back to LiteLLMProvider", exc)
             return LiteLLMProvider(**kwargs)
 
     raise ValueError(f"Unknown backend: {backend!r}. Choose from: aifw, litellm, auto")
