@@ -322,7 +322,7 @@ class HttpxWebProvider:
             return result.text
         except ImportError:
             logger.warning("iil-ingest not installed — cannot extract PDF text")
-            return "[PDF content — install iil-ingest[pdf] to extract text]"
+            return "[PDF content — install iil-reflex[web-pdf] to extract text]"
         except Exception as e:
             logger.error("PDF extraction failed: %s", e)
             return f"[PDF extraction error: {e}]"
@@ -601,7 +601,7 @@ class PDFDocumentProvider:
             from ingest.extractors.pdf import PDFExtractor
         except ImportError as exc:
             raise ImportError(
-                "iil-ingest[pdf] is required for PDF reading. Install with: pip install iil-reflex[web]"
+                "iil-ingest is required for PDF reading. Install with: pip install iil-reflex[web-pdf]"
             ) from exc
 
         with open(path, "rb") as fh:

@@ -208,7 +208,7 @@ Resilience points worth knowing:
 - **`PubChemAdapter`** — name/CAS → `SDSData` via PubChem PUG REST + GHS classification
   parsing.
 - **`GESTISAdapter`** — German hazardous-substance DB lookups.
-- **`PDFDocumentProvider`** — text extraction (`iil-ingest[pdf,ocr]`).
+- **`PDFDocumentProvider`** — text extraction (`iil-ingest[pdf,ocr]`, extra `[web-pdf]`).
 
 All adapters take an optional `HttpxWebProvider` for injection/testing; tests use `respx`
 to stub HTTP without real calls.
@@ -233,7 +233,8 @@ to stub HTTP without real calls.
 | *(core)* | `iil-promptfw`, `pyyaml` | `check`, `classify`, offline `research` |
 | `llm` | `litellm` | LLM-backed research, `LiteLLMProvider` |
 | `aifw` | `iil-aifw` | Django DB-routed LLM (`AifwProvider`) |
-| `web` | `httpx`, `tenacity`, `hishel`, `pyrate-limiter`, `bs4`, `iil-ingest` | scraping, PubChem/GESTIS SDS, PDF |
+| `web` | `httpx`, `tenacity`, `hishel`, `pyrate-limiter`, `bs4` | scraping, PubChem/GESTIS SDS (installs from PyPI) |
+| `web-pdf` | `[web]` + `iil-ingest[pdf,ocr]` (Git) | PDF/OCR text extraction |
 | `playwright` | `playwright` | browser-driven frontend tests |
 | `metrics` | `psycopg[binary]` | review-metrics persistence |
 | `dev` | pytest, ruff, respx, … | the test/lint toolchain |
