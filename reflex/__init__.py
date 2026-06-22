@@ -34,6 +34,20 @@ Usage:
 
     engine = UCDialogEngine(config=config, llm=llm)
     state = engine.start("SDS hochladen und validieren")
+
+Public API is organised **by submodule** (see the architecture map above) — import
+from those directly, e.g. ``from reflex.agent import DomainAgent``. The top-level
+``reflex`` namespace itself exposes only ``__version__``; ``__all__`` reflects that.
+
+``__version__`` is resolved from the installed package metadata, falling back to
+``"0.0.0.dev0"`` in an uninstalled source checkout.
 """
 
-__version__ = "0.6.0"
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    __version__ = version("iil-reflex")
+except PackageNotFoundError:  # source checkout without an install
+    __version__ = "0.0.0.dev0"
+
+__all__ = ["__version__"]
