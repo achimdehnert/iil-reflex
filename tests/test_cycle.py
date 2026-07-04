@@ -225,9 +225,7 @@ class TestRunFullCycle:
 
     def test_should_classify_and_retry_then_fail_after_max_iterations(self):
         runner = CycleRunner(CycleConfig(max_fix_iterations=2))
-        with patch.object(
-            runner, "_run_backend_tests", return_value=_failed(CyclePhase.BACKEND_TEST, "FAILED test_x")
-        ):
+        with patch.object(runner, "_run_backend_tests", return_value=_failed(CyclePhase.BACKEND_TEST, "FAILED test_x")):
             result = runner.run_full_cycle(uc_slug="UC-001")
         # Regression: a fully failed cycle must end FAILED, not PENDING.
         assert result.final_status == PhaseStatus.FAILED
@@ -268,9 +266,7 @@ class TestRunFullCycle:
         runner = CycleRunner(CycleConfig(max_fix_iterations=1))
         with (
             patch.object(runner, "_run_backend_tests", return_value=_passed(CyclePhase.BACKEND_TEST)),
-            patch.object(
-                runner, "_run_frontend_verify", return_value=_failed(CyclePhase.FRONTEND_VERIFY, "/x 500")
-            ),
+            patch.object(runner, "_run_frontend_verify", return_value=_failed(CyclePhase.FRONTEND_VERIFY, "/x 500")),
         ):
             result = runner.run_full_cycle()
         assert result.final_status == PhaseStatus.FAILED
