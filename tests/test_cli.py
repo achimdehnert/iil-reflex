@@ -77,9 +77,7 @@ class TestCLIInfo:
     def test_should_show_htmx_and_permissions(self, monkeypatch, tmp_path):
         cfg = tmp_path / "reflex.yaml"
         cfg.write_text(
-            "hub_name: h\n"
-            "htmx_patterns:\n  banned:\n    - hx-boost\n"
-            "permissions_matrix:\n  /a/:\n    anonymous: 200\n"
+            "hub_name: h\nhtmx_patterns:\n  banned:\n    - hx-boost\npermissions_matrix:\n  /a/:\n    anonymous: 200\n"
         )
         monkeypatch.setattr(sys, "argv", ["reflex", "-c", str(cfg), "info"])
         assert main() == 0

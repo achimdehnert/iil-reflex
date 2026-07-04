@@ -132,9 +132,7 @@ class TestGetServiceInfoEnrichment:
     def test_should_match_by_repo_field(self, tmp_path):
         infra_dir = tmp_path / "platform" / "infra"
         infra_dir.mkdir(parents=True)
-        (infra_dir / "ports.yaml").write_text(
-            "services:\n  some-key:\n    port: 8001\n    repo: org/my-actual-repo\n"
-        )
+        (infra_dir / "ports.yaml").write_text("services:\n  some-key:\n    port: 8001\n    repo: org/my-actual-repo\n")
         info = get_service_info("my-actual-repo", tmp_path)
         assert info is not None
         assert info["name"] == "some-key"
