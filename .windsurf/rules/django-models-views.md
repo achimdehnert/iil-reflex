@@ -1,1 +1,0 @@
-/home/devuser/github/platform/.windsurf/rules/django-models-views.md
