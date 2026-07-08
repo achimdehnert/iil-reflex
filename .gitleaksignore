@@ -1,0 +1,9 @@
+# IIL Platform — gitleaks fingerprint suppressions (siehe platform docs/templates/.gitleaks.toml).
+# Format: <commit>:<path>:<rule>:<line>
+#
+# tests/test_review_plugins.py:166 setzt einen erfundenen API-Key-String als
+# Fixture fuer SecurityPlugin.test_should_flag_hardcoded_secret_in_regular_file
+# (prueft, dass der Scanner erfundene Secrets erkennt) — kein echtes Secret.
+# (Wert hier bewusst nicht zitiert, sonst matcht dieser Kommentar selbst die
+# generic-api-key-Regel — siehe vorheriger CI-Lauf dieses PRs.)
+3430ab98dd5f3dcd3612e25ecb22494b6f545a14:tests/test_review_plugins.py:generic-api-key:166
