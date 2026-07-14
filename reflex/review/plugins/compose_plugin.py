@@ -16,6 +16,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import yaml
+
 from reflex.review.types import (
     Finding,
     FixComplexity,
@@ -139,8 +141,14 @@ class ComposePlugin:
                 )
             )
 
-        # Check env interpolation anti-pattern (ADR-045)
-        if "environment:" in compose_text and "${" in compose_text:
+        # Check env interpolation anti-pattern (ADR-045): the rule bans ${VAR}
+        # substitution *inside a service's `environment:` mapping* (secrets should
+        # come from env_file instead). A whole-file substring match false-positives
+        # on unrelated ${...} usage elsewhere in the file — e.g. `image:
+        # ...${IMAGE_TAG:-latest}` (deploy-time image pin, not a secret) or escaped
+        # `$$VAR` inside healthcheck shell commands. Parse the compose YAML and only
+        # inspect each service's environment values.
+        if self._environment_has_interpolation(compose_text):
             findings.append(
                 Finding(
                     rule_id="compose.env_interpolation",
@@ -154,6 +162,39 @@ class ComposePlugin:
             )
 
         return findings
+
+    @staticmethod
+    def _environment_has_interpolation(compose_text: str) -> bool:
+        """True if any service's `environment:` mapping uses ${VAR} substitution.
+
+        Escaped `$$VAR` (literal $ passed to the container shell, e.g. in
+        healthcheck commands) does not count.
+        """
+        try:
+            parsed = yaml.safe_load(compose_text) or {}
+        except yaml.YAMLError:
+            # Unparseable compose file — fall back to the old blunt heuristic
+            # rather than silently skipping the check.
+            return "environment:" in compose_text and "${" in compose_text
+
+        services = parsed.get("services") or {}
+        if not isinstance(services, dict):
+            return False
+
+        for service in services.values():
+            if not isinstance(service, dict):
+                continue
+            env = service.get("environment")
+            if env is None:
+                continue
+            values = env if isinstance(env, list) else env.values() if isinstance(env, dict) else []
+            for entry in values:
+                text = str(entry)
+                # KEY=value list form → only the value half can interpolate.
+                text = text.split("=", 1)[1] if "=" in text and isinstance(env, list) else text
+                if "${" in text.replace("$${", ""):
+                    return True
+        return False
 
 
 plugin = ComposePlugin()
