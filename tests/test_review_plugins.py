@@ -90,10 +90,10 @@ class TestRepoPlugin:
         assert "compose.env_interpolation" in rule_ids
 
     def test_should_not_flag_image_tag_interpolation_as_env_interpolation(self, minimal_repo: Path):
-        # Regression (2026-07-14, trading-hub false positive): ${IMAGE_TAG} in
-        # `image:` is a deploy-time image pin, not a secret in `environment:` —
-        # a whole-file substring match previously flagged this even though every
-        # service used env_file exclusively for secrets (ADR-045-compliant).
+        # Regression (2026-07-14): ${IMAGE_TAG} in `image:` is a deploy-time
+        # image pin, not a secret in `environment:` — a whole-file substring
+        # match previously flagged this even though every service used
+        # env_file exclusively for secrets (ADR-045-compliant).
         compose = minimal_repo / "docker-compose.prod.yml"
         compose.write_text(
             "services:\n"
