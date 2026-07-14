@@ -81,6 +81,35 @@ class TestRepoPlugin:
         rule_ids = {f.rule_id for f in findings}
         assert "compose.env_interpolation" in rule_ids
 
+    def test_should_detect_env_interpolation_list_form(self, minimal_repo: Path):
+        compose = minimal_repo / "docker-compose.prod.yml"
+        compose.write_text("services:\n  web:\n    environment:\n      - SECRET_KEY=${SECRET_KEY}\n")
+        plugin = ComposePlugin()
+        findings = plugin.check("test-hub", {"repo_path": str(minimal_repo)})
+        rule_ids = {f.rule_id for f in findings}
+        assert "compose.env_interpolation" in rule_ids
+
+    def test_should_not_flag_image_tag_interpolation_as_env_interpolation(self, minimal_repo: Path):
+        # Regression (2026-07-14, trading-hub false positive): ${IMAGE_TAG} in
+        # `image:` is a deploy-time image pin, not a secret in `environment:` —
+        # a whole-file substring match previously flagged this even though every
+        # service used env_file exclusively for secrets (ADR-045-compliant).
+        compose = minimal_repo / "docker-compose.prod.yml"
+        compose.write_text(
+            "services:\n"
+            "  web:\n"
+            "    image: ghcr.io/test/test-hub:${IMAGE_TAG:-latest}\n"
+            "    env_file: .env.prod\n"
+            "    environment:\n"
+            "      DB_HOST: db\n"
+            "    healthcheck:\n"
+            '      test: ["CMD-SHELL", "pg_isready -U \\"$$POSTGRES_USER\\""]\n'
+        )
+        plugin = ComposePlugin()
+        findings = plugin.check("test-hub", {"repo_path": str(minimal_repo)})
+        rule_ids = {f.rule_id for f in findings}
+        assert "compose.env_interpolation" not in rule_ids
+
     def test_should_detect_env_not_gitignored(self, minimal_repo: Path):
         # .gitignore-secret detection moved RepoPlugin → SecurityPlugin (security.gitignore_missing_env).
         (minimal_repo / ".gitignore").write_text("__pycache__\n")
