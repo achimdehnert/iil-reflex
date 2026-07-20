@@ -276,7 +276,7 @@ class SecurityPlugin:
             if ".example" in rel_path or "template" in rel_path.lower():
                 continue
             parts = Path(rel_path).parts
-            if any(p in self.TEST_DIRS for p in parts):
+            if any(p in self.TEST_DIRS for p in parts) or file_path.stem in self.TEST_DIRS:
                 continue
 
             for pattern, desc in self.SECRET_PATTERNS:
