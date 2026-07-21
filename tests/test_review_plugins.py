@@ -186,6 +186,38 @@ class TestComposePlugin:
         assert "security.compose_port_implicit_bind" in rule_ids
 
 
+# ── SecurityPlugin — hardcoded secrets ──────────────────────────────────────
+
+
+class TestSecurityPluginHardcodedSecrets:
+    def test_should_flag_hardcoded_secret_in_regular_file(self, minimal_repo: Path):
+        (minimal_repo / "config").mkdir()
+        # Wert zur Laufzeit zusammengesetzt: als Literal matcht diese Zeile die
+        # gitleaks-Regel generic-api-key und faerbt CI rot (Repo- UND sdist-Scan,
+        # da tests/ im sdist mitgeliefert wird). Eine .gitleaksignore-Suppression
+        # waere hier das falsche Mittel — der Scan des zu publizierenden Artefakts
+        # darf laut Triage-Hint nicht auf Intent unterdrueckt werden. Stattdessen
+        # enthaelt die Quelle schlicht kein Secret-foermiges Literal mehr.
+        fake_value = "abcdefgh" + "12345678"
+        (minimal_repo / "config" / "production.py").write_text(f'API_KEY = "{fake_value}"\n')
+        plugin = SecurityPlugin()
+        findings = plugin.check("test-hub", {"repo_path": str(minimal_repo)})
+        rule_ids = {f.rule_id for f in findings}
+        assert "security.hardcoded_secret" in rule_ids
+
+    def test_should_not_flag_django_test_settings_file(self, minimal_repo: Path):
+        # config/settings/test.py is a Django test-settings module, not a directory
+        # named "tests" — TEST_DIRS only matched directory parts, so the file's own
+        # stem ("test") needs the same allowance to avoid a false positive.
+        settings_dir = minimal_repo / "config" / "settings"
+        settings_dir.mkdir(parents=True)
+        (settings_dir / "test.py").write_text('INGRESS_AUTH_TOKEN = "test-ingress-token"\n')
+        plugin = SecurityPlugin()
+        findings = plugin.check("test-hub", {"repo_path": str(minimal_repo)})
+        rule_ids = {f.rule_id for f in findings}
+        assert "security.hardcoded_secret" not in rule_ids
+
+
 # ── ADRPlugin ────────────────────────────────────────────────────────────────
 
 
