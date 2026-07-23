@@ -24,6 +24,13 @@ class ADRPlugin:
     applicable_tiers = [1, 2]
 
     REQUIRED_FRONTMATTER = ["title", "status", "date"]
+    # Gleichwertige Schreibweisen je Pflichtfeld. MADR 4.0 nennt `date`, die
+    # Org-Konvention (ADR-138, iil-adrfw) nutzt `decision_date` — beides erfuellt
+    # dieselbe Pflicht. Ohne den Alias meldete das Plugin 229 von 231 platform-ADRs
+    # faelschlich als BLOCK, waehrend iil-adrfw sie 228/228 gruen validiert.
+    FRONTMATTER_ALIASES: dict[str, tuple[str, ...]] = {
+        "date": ("date", "decision_date"),
+    }
     RECOMMENDED_FRONTMATTER = ["deciders", "implementation_status"]
     VALID_STATUSES = {"proposed", "accepted", "deprecated", "superseded", "archived"}
     VALID_IMPL_STATUSES = {"none", "partial", "implemented", "verified"}
@@ -82,14 +89,17 @@ class ADRPlugin:
         # Parse frontmatter
         frontmatter = self._parse_frontmatter(text)
 
-        # Check required frontmatter
+        # Check required frontmatter — ein Pflichtfeld gilt als erfuellt, sobald
+        # eine seiner gleichwertigen Schreibweisen vorhanden ist (s. FRONTMATTER_ALIASES).
         for key in self.REQUIRED_FRONTMATTER:
-            if key not in frontmatter:
+            accepted = self.FRONTMATTER_ALIASES.get(key, (key,))
+            if not any(alias in frontmatter for alias in accepted):
+                expected = " | ".join(accepted)
                 findings.append(
                     Finding(
                         rule_id=f"adr.missing_frontmatter_{key}",
                         severity=ReviewSeverity.BLOCK,
-                        message=f"{adr_name}: Missing required frontmatter field '{key}'",
+                        message=f"{adr_name}: Missing required frontmatter field '{expected}'",
                         adr_ref="MADR 4.0",
                         file_path=rel_path,
                         auto_fixable=False,

@@ -261,6 +261,32 @@ class TestADRPlugin:
         block_findings = [f for f in findings if f.severity == ReviewSeverity.BLOCK]
         assert block_findings == [], [f.rule_id for f in block_findings]
 
+    def test_should_accept_decision_date_as_date(self, minimal_repo: Path):
+        """Org-Konvention ADR-138/iil-adrfw nutzt `decision_date` statt `date`.
+
+        Ohne Alias meldete das Plugin 229 von 231 platform-ADRs faelschlich als
+        BLOCK, obwohl iil-adrfw sie 228/228 gruen validiert.
+        """
+        adr_dir = minimal_repo / "docs" / "adr"
+        adr_dir.mkdir(parents=True)
+        (adr_dir / "ADR-001-test.md").write_text(
+            "---\n"
+            "title: 'ADR-001: Test Decision'\n"
+            "status: proposed\n"
+            "decision_date: 2026-01-01\n"
+            "---\n\n"
+            "# ADR-001: Test Decision\n\n"
+            "## 1. Context\n\n"
+            "## 2. Decision Drivers\n\n"
+            "## 3. Considered Options\n\n"
+            "## 4. Decision Outcome\n\n"
+        )
+
+        plugin = ADRPlugin()
+        findings = plugin.check("test-hub", {"repo_path": str(minimal_repo)})
+        rule_ids = {f.rule_id for f in findings}
+        assert "adr.missing_frontmatter_date" not in rule_ids
+
     def test_should_detect_missing_impl_status_for_accepted(self, minimal_repo: Path):
         adr_dir = minimal_repo / "docs" / "adr"
         adr_dir.mkdir(parents=True)
