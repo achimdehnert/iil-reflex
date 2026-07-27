@@ -2,7 +2,7 @@
 
 **REFLEX — Reflexive Evidence-based Loop for UI Development**
 
-> Version **0.6.0** · Python ≥ 3.12 · Pure Python, no Django dependency · MIT License
+> Version **0.6.1** · Python ≥ 3.12 · Pure Python, no Django dependency · MIT License
 
 Evidence-based UI quality methodology: LLM-powered domain research, UC quality checking,
 failure classification, SDS hazardous-substance lookup, infrastructure review, and
