@@ -7,7 +7,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+---
+
+## [0.6.1] — 2026-07-27
+
 ### Fixed
+- **`compose.healthcheck_in_dockerfile` false-positived on a comment**: the check
+  matched `"HEALTHCHECK" in df_text` against the whole Dockerfile — a comment
+  documenting the deliberate *absence* of a HEALTHCHECK (ADR-021 §3.4 convention
+  for shared web/worker images) tripped the same BLOCK the real instruction would
+  (illustration-hub#93). Now only an actual Dockerfile instruction (line start,
+  outside comments) counts.
 - **SSRF gap in `HttpxWebProvider.search_web`**: it called `_retry_get` directly on a
   client with `follow_redirects=True`, bypassing the `_guarded_get` SSRF check — a
   DuckDuckGo redirect to a private/link-local IP (e.g. `169.254.169.254`) would have
@@ -15,6 +25,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   `_assert_public_url` + manual redirect following). `_guarded_get` gained `**kwargs`
   (applied to the first request only) to carry the query params. Regression test drives
   a 302→metadata-IP redirect and asserts the metadata host is never contacted.
+
+### Added
+- **`test_users[*].password` resolves `${VAR}` against `os.environ`**
+  (illustration-hub#52): real credentials could never go in `reflex.yaml`
+  (git-tracked) before, so the `permissions_matrix` runner was non-executable in
+  any repo with real login-gated routes. A literal password (existing configs)
+  still works unchanged. Missing env var raises `PermissionRunnerConfigError`
+  with the `export` command to fix it.
 
 ---
 
