@@ -14,6 +14,7 @@ Port binding checks → security_plugin (Single Responsibility).
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import yaml
@@ -47,12 +48,16 @@ class ComposePlugin:
 
         compose_text = compose_file.read_text(encoding="utf-8")
 
-        # Check HEALTHCHECK not in Dockerfile
+        # Check HEALTHCHECK not in Dockerfile. A whole-file substring match
+        # false-positives on any mention of the word — e.g. a comment documenting
+        # *why* there is deliberately no HEALTHCHECK (ADR-021 §3.4 compliance note,
+        # illustration-hub#93). Only an actual Dockerfile instruction (HEALTHCHECK
+        # at line start, outside comments) counts.
         for dockerfile_path in ["docker/app/Dockerfile", "Dockerfile"]:
             df = repo_path / dockerfile_path
             if df.exists():
                 df_text = df.read_text(encoding="utf-8")
-                if "HEALTHCHECK" in df_text:
+                if self._dockerfile_has_healthcheck_instruction(df_text):
                     findings.append(
                         Finding(
                             rule_id="compose.healthcheck_in_dockerfile",
@@ -162,6 +167,24 @@ class ComposePlugin:
             )
 
         return findings
+
+    _HEALTHCHECK_INSTRUCTION_RE = re.compile(r"^\s*HEALTHCHECK\b", re.IGNORECASE)
+
+    @classmethod
+    def _dockerfile_has_healthcheck_instruction(cls, dockerfile_text: str) -> bool:
+        """True if the Dockerfile contains an actual HEALTHCHECK instruction.
+
+        Comment lines (`#`) are excluded so that documenting the *absence* of
+        a HEALTHCHECK (the ADR-021 §3.4 convention for shared web/worker
+        images) doesn't itself trigger the finding it's explaining.
+        """
+        for line in dockerfile_text.splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            if cls._HEALTHCHECK_INSTRUCTION_RE.match(stripped):
+                return True
+        return False
 
     @staticmethod
     def _environment_has_interpolation(compose_text: str) -> bool:

@@ -156,6 +156,21 @@ class TestComposePlugin:
         findings = plugin.check("test-hub", {"repo_path": str(minimal_repo)})
         assert any(f.rule_id == "compose.healthcheck_in_dockerfile" for f in findings)
 
+    def test_should_not_flag_healthcheck_mentioned_only_in_comment(self, minimal_repo: Path):
+        # illustration-hub#93 false positive: a comment documenting the deliberate
+        # absence of HEALTHCHECK (ADR-021 §3.4) tripped the same substring match
+        # the real instruction does. Only an actual instruction should BLOCK.
+        df = minimal_repo / "docker" / "app" / "Dockerfile"
+        df.write_text(
+            "FROM python:3.12-slim\n"
+            "# Kein HEALTHCHECK hier (platform:ADR-021 §3.4): dasselbe Image bedient\n"
+            "# web UND celery-worker/beat.\n"
+            'CMD ["gunicorn", "config.wsgi:application"]\n'
+        )
+        plugin = ComposePlugin()
+        findings = plugin.check("test-hub", {"repo_path": str(minimal_repo)})
+        assert not any(f.rule_id == "compose.healthcheck_in_dockerfile" for f in findings)
+
     def test_should_detect_no_restart_policy(self, minimal_repo: Path):
         compose = minimal_repo / "docker-compose.prod.yml"
         compose.write_text(
