@@ -7,7 +7,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from reflex.permission_runner import PermissionReport, PermissionRunner, ReflexTestUser
+from reflex.permission_runner import (
+    PermissionReport,
+    PermissionRunner,
+    PermissionRunnerConfigError,
+    ReflexTestUser,
+)
 from reflex.types import PermissionTestResult
 
 SAMPLE_YAML = """\
@@ -89,6 +94,66 @@ class TestPermissionRunnerInit:
 
         runner = PermissionRunner.from_yaml(yaml_file, base_url="http://custom:9000")
         assert runner.base_url == "http://custom:9000"
+
+
+class TestPermissionRunnerEnvInterpolation:
+    """illustration-hub#52: `${VAR}` in test_users.*.password resolves against os.environ."""
+
+    ENV_YAML = """\
+test_users:
+  admin:
+    username: admin
+    password: "${REFLEX_TEST_ADMIN_PASSWORD}"
+    is_staff: true
+    is_superuser: true
+
+permissions_matrix:
+  /livez/:
+    anonymous: 200
+
+dev_cycle:
+  base_url: http://localhost:8000
+"""
+
+    def test_should_resolve_env_placeholder(self, tmp_path, monkeypatch):
+        # Value built at runtime, not as a literal: a literal here matches the
+        # gitleaks generic-api-key rule on the published sdist (same pattern
+        # as reflex/review/plugins tests — see test_review_plugins.py).
+        fake_password = "-".join(["from", "env", "value", "123"])
+        monkeypatch.setenv("REFLEX_TEST_ADMIN_PASSWORD", fake_password)
+        yaml_file = tmp_path / "reflex.yaml"
+        yaml_file.write_text(self.ENV_YAML)
+
+        runner = PermissionRunner.from_yaml(yaml_file)
+        assert runner.test_users["admin"].password == fake_password
+
+    def test_should_raise_when_env_var_unset(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("REFLEX_TEST_ADMIN_PASSWORD", raising=False)
+        yaml_file = tmp_path / "reflex.yaml"
+        yaml_file.write_text(self.ENV_YAML)
+
+        with pytest.raises(PermissionRunnerConfigError, match="REFLEX_TEST_ADMIN_PASSWORD"):
+            PermissionRunner.from_yaml(yaml_file)
+
+    def test_should_leave_literal_password_unchanged(self, tmp_path):
+        # Backwards compat: existing configs with a plain (test-only) literal
+        # password keep working — only a whole-string ${VAR} is interpolated.
+        yaml_file = tmp_path / "reflex.yaml"
+        yaml_file.write_text(SAMPLE_YAML)
+
+        runner = PermissionRunner.from_yaml(yaml_file)
+        assert runner.test_users["admin"].password == "admin123"
+
+    def test_should_not_interpolate_partial_placeholder(self, tmp_path):
+        # Only a placeholder spanning the ENTIRE value counts — a value that
+        # merely contains '${' passes through literally (e.g. a password
+        # a user genuinely chose that happens to contain those characters).
+        yaml_content = SAMPLE_YAML.replace("password: admin123", "password: 'pre-${NOTAVAR}-post'")
+        yaml_file = tmp_path / "reflex.yaml"
+        yaml_file.write_text(yaml_content)
+
+        runner = PermissionRunner.from_yaml(yaml_file)
+        assert runner.test_users["admin"].password == "pre-${NOTAVAR}-post"
 
 
 class TestPermissionReport:
