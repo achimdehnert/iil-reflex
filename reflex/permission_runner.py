@@ -29,6 +29,7 @@ CLI:
 from __future__ import annotations
 
 import logging
+import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -41,7 +42,37 @@ from reflex.types import PermissionTestResult
 logger = logging.getLogger(__name__)
 
 
-__all__ = ["ReflexTestUser", "PermissionReport", "PermissionRunner"]
+__all__ = ["ReflexTestUser", "PermissionReport", "PermissionRunner", "PermissionRunnerConfigError"]
+
+
+class PermissionRunnerConfigError(ValueError):
+    """reflex.yaml references an environment variable that isn't set."""
+
+
+_ENV_PLACEHOLDER_RE = re.compile(r"^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$")
+
+
+def _resolve_env_placeholder(value: str, *, user_name: str, field_name: str) -> str:
+    """Resolve a whole-value `${VAR}` placeholder against os.environ.
+
+    reflex.yaml is git-tracked, so real passwords must never be typed there
+    (reflex/review/plugins/permission_runner.py reads test_users literally —
+    see illustration-hub#52). Only a placeholder spanning the ENTIRE string
+    counts; a literal value (or a value merely containing '${') passes
+    through unchanged so existing configs keep working.
+    """
+    match = _ENV_PLACEHOLDER_RE.match(value)
+    if not match:
+        return value
+    var_name = match.group(1)
+    resolved = os.environ.get(var_name)
+    if resolved is None:
+        raise PermissionRunnerConfigError(
+            f"test_users.{user_name}.{field_name} references ${{{var_name}}}, "
+            f"but the environment variable {var_name} is not set. "
+            f"Export it before running the permission runner, e.g.: export {var_name}=..."
+        )
+    return resolved
 
 
 @dataclass
@@ -119,7 +150,9 @@ class PermissionRunner:
         for name, user_data in raw.get("test_users", {}).items():
             test_users[name] = ReflexTestUser(
                 username=user_data.get("username", name),
-                password=user_data.get("password", ""),
+                password=_resolve_env_placeholder(
+                    str(user_data.get("password", "")), user_name=name, field_name="password"
+                ),
                 org_role=user_data.get("org_role", ""),
                 module_role=user_data.get("module_role", ""),
                 is_staff=user_data.get("is_staff", False),
