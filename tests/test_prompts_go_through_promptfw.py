@@ -76,8 +76,7 @@ def _python_dateien():
     return [
         p
         for p in _PAKET_WURZEL.rglob("*.py")
-        if not any(teil.startswith(".") for teil in p.relative_to(_PAKET_WURZEL).parts)
-        and "__pycache__" not in p.parts
+        if not any(teil.startswith(".") for teil in p.relative_to(_PAKET_WURZEL).parts) and "__pycache__" not in p.parts
     ]
 
 
