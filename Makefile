@@ -1,6 +1,6 @@
 # iil-reflex — Developer Makefile
 
-.PHONY: install install-dev test test-v test-integration lint clean help
+.PHONY: setup install install-dev test test-v test-integration lint clean help
 
 PYTHON := .venv/bin/python
 PIP    := .venv/bin/pip
@@ -13,6 +13,14 @@ help:
 	@echo "  test-integration  — pytest -m integration (requires tesseract + poppler)"
 	@echo "  lint              — ruff check reflex/"
 	@echo "  clean             — remove __pycache__ + .pytest_cache"
+
+# Fleet-Standard-Einstieg (pkg-agents-v1, platform #2075 K2): make setup && make test
+# setup spiegelt bewusst den CI-Testumfang (install_extra: dev) — web-Extra
+# hat eigene, in CI nicht laufende Tests (siehe Issue zu hishel/web-Tests).
+setup:
+	python3 -m venv .venv
+	$(PIP) install -U pip
+	$(PIP) install -e ".[dev]"
 
 install:
 	$(PIP) install -e ".[dev,web]"
