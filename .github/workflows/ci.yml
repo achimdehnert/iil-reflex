@@ -1,6 +1,6 @@
 # ci.yml — Thin-Caller auf das ADR-226-Reusable (platform ADR-266 Stufe 2b).
 # Semantik (Lint, Secret-Scan, Test+Coverage, Build+Artefakt-Scan, pip-audit)
-# lebt zentral in platform/.github/workflows/_ci-pypi.yml — Verbesserungen
+# lebt zentral in iilgmbh/shared-ci/.github/workflows/_ci-pypi.yml — Verbesserungen
 # erreichen alle Pakete in O(1). Inputs abgeleitet aus der Vorgänger-ci.yml.
 
 name: CI
@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   ci:
-    uses: iilgmbh/shared-ci/.github/workflows/_ci-pypi.yml@v1.1.0
+    uses: iilgmbh/shared-ci/.github/workflows/_ci-pypi.yml@v1.1.11
     with:
       python_versions: '["3.12"]'
       install_extra: 'dev'
